@@ -1,3 +1,9 @@
+# Initialize session state for conversation history
+if 'conversation' not in st.session_state:
+    st.session_state.conversation = [
+        {"role": "system", "content": "You are an AI assistant that uses a provided knowledge base to answer questions. Remember the context of the conversation to handle follow-up questions."}
+    ]
+
 import streamlit as st
 import pandas as pd
 import io

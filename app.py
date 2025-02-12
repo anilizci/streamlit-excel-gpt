@@ -55,19 +55,19 @@ flat_knowledge_base = flatten_json(knowledge_base)
 # Build a list of (key, value) pairs
 kb_items = list(flat_knowledge_base.items())  # [(key_path, text), ...]
 
-# Function to find the best answer for a user query with improved fuzzy matching
-def find_best_answer(query, kb_items, cutoff=0.4):
+# Function to find the best answer for a user query with **STRICT MATCHING**
+def find_best_answer(query, kb_items, cutoff=0.6):
     """
-    Find the best-matching answer from the knowledge base, even if phrased differently.
+    Find the best-matching answer from the knowledge base, ensuring **STRICT** matching.
     """
-    keys = [item[0].lower() for item in kb_items]  # Extract all keys/questions
-    best_match = difflib.get_close_matches(query.lower(), keys, n=1, cutoff=cutoff)
+    kb_keys = [item[0].lower() for item in kb_items]  # Extract all keys/questions
+    best_match = difflib.get_close_matches(query.lower(), kb_keys, n=1, cutoff=cutoff)
 
     if best_match:
         for k, v in kb_items:
             if k.lower() == best_match[0]:
-                return v  # Return the matched answer
-    return None  # No relevant answer found
+                return v  # Return the matched answer **exactly** as stored
+    return "I don't have information on that."  # Default response if no match is found
 
 # App title
 st.title("Excel File Cleaner & GPT Assistant")
@@ -127,11 +127,8 @@ if user_input:
     st.session_state.conversation.append({"role": "user", "content": user_input})
 
     with st.spinner("GPT is generating a response..."):
-        # Retrieve the best-matching answer from the knowledge base
+        # Retrieve the **EXACT** answer from the knowledge base
         assistant_reply = find_best_answer(user_input, kb_items)
-
-        if not assistant_reply:
-            assistant_reply = "I don't have information on that."
 
     # Append assistant reply to conversation history
     st.session_state.conversation.append({"role": "assistant", "content": assistant_reply})

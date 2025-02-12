@@ -49,3 +49,29 @@ if uploaded_file:
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
 
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+import openai
+
+# Section: GPT Chat Interface
+st.header("Chat with GPT about Your Data")
+
+if uploaded_file:  # Ensure an Excel file is uploaded before chat is available
+    user_input = st.text_input("Ask GPT about your Excel data:")
+    
+    if user_input:
+        # Call GPT (Replace 'your-openai-api-key' with your actual OpenAI API key)
+        openai.api_key = "your-openai-api-key"
+        
+        response = openai.ChatCompletion.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant trained to answer questions about Excel data."},
+                {"role": "user", "content": user_input}
+            ]
+        )
+
+        # Display GPT's response
+        st.write("GPT's Response:", response["choices"][0]["message"]["content"])
+
+

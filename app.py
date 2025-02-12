@@ -55,14 +55,18 @@ flat_knowledge_base = flatten_json(knowledge_base)
 # Build a list of (key, value) pairs
 kb_items = list(flat_knowledge_base.items())  # [(key_path, text), ...]
 
-# Function to find the best answer for a user query
-def find_best_answer(query, kb_items, cutoff=0.3):
+# Function to find the best answer for a user query with improved fuzzy matching
+def find_best_answer(query, kb_items, cutoff=0.4):
     """
-    Return the best exact match based on the question, ensuring we retrieve the correct answer.
+    Find the best-matching answer from the knowledge base, even if phrased differently.
     """
-    for k, v in kb_items:
-        if query.lower() in k.lower():
-            return v  # Return the correct answer from the knowledge base
+    keys = [item[0].lower() for item in kb_items]  # Extract all keys/questions
+    best_match = difflib.get_close_matches(query.lower(), keys, n=1, cutoff=cutoff)
+
+    if best_match:
+        for k, v in kb_items:
+            if k.lower() == best_match[0]:
+                return v  # Return the matched answer
     return None  # No relevant answer found
 
 # App title

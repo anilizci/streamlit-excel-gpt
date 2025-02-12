@@ -49,18 +49,3 @@ if uploaded_file:
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
 
-import json
-import streamlit as st
-
-# Section: Upload JSON Knowledge Base
-st.header("Upload Knowledge Base")
-
-json_file = st.file_uploader("Upload Knowledge JSON File", type=["json"])
-
-if json_file:
-    knowledge_data = json.load(json_file)
-    st.success("Knowledge File Loaded Successfully ✅")
-
-    # Display JSON content (for testing)
-    st.json(knowledge_data)
- 

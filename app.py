@@ -26,47 +26,39 @@ def load_knowledge_base():
 
 knowledge_base = load_knowledge_base()
 
-# Function to flatten JSON structure for improved search
-def flatten_json(data, parent_key="", sep=" > "):
-    """Converts a nested JSON into a searchable dictionary with key paths."""
-    items = {}
+# Function to extract only questions and answers from the JSON
+def extract_qna(data):
+    """Extracts all questions and answers from a structured JSON knowledge base."""
+    qna_list = []
     
-    if isinstance(data, dict):
-        for k, v in data.items():
-            new_key = f"{parent_key}{sep}{k}" if parent_key else k
-            items.update(flatten_json(v, new_key, sep=sep))
-    elif isinstance(data, list):
-        for index, v in enumerate(data):
-            if isinstance(v, dict):
-                for sub_k, sub_v in v.items():
-                    sub_key = f"{parent_key}[{index}] > {sub_k}"
-                    items.update(flatten_json(sub_v, sub_key, sep=sep))
-            else:
-                new_key = f"{parent_key}[{index}]"
-                items.update(flatten_json(v, new_key, sep=sep))
-    else:
-        items[parent_key] = str(data)
+    def traverse_json(obj):
+        if isinstance(obj, dict):
+            if "question" in obj and "answer" in obj:
+                qna_list.append((obj["question"].lower(), obj["answer"]))
+            for value in obj.values():
+                traverse_json(value)
+        elif isinstance(obj, list):
+            for item in obj:
+                traverse_json(item)
     
-    return items
+    traverse_json(data)
+    return qna_list
 
-# Flatten the knowledge base for better searching
-flat_knowledge_base = flatten_json(knowledge_base)
+# Extract question-answer pairs
+qna_pairs = extract_qna(knowledge_base)
 
-# Build a list of (key, value) pairs
-kb_items = list(flat_knowledge_base.items())  # [(key_path, text), ...]
-
-# Function to find the best answer for a user query with **STRICT MATCHING**
-def find_best_answer(query, kb_items, cutoff=0.6):
+# Function to find the best-matching question and return the exact answer
+def find_best_answer(query, qna_pairs, cutoff=0.5):
     """
-    Find the best-matching answer from the knowledge base, ensuring **STRICT** matching.
+    Find the best-matching question from the knowledge base and return the corresponding answer.
     """
-    kb_keys = [item[0].lower() for item in kb_items]  # Extract all keys/questions
-    best_match = difflib.get_close_matches(query.lower(), kb_keys, n=1, cutoff=cutoff)
+    questions = [q[0] for q in qna_pairs]  # Extract only the question texts
+    best_match = difflib.get_close_matches(query.lower(), questions, n=1, cutoff=cutoff)
 
     if best_match:
-        for k, v in kb_items:
-            if k.lower() == best_match[0]:
-                return v  # Return the matched answer **exactly** as stored
+        for q, a in qna_pairs:
+            if q == best_match[0]:  
+                return a  # Return the exact stored answer
     return "I don't have information on that."  # Default response if no match is found
 
 # App title
@@ -127,8 +119,8 @@ if user_input:
     st.session_state.conversation.append({"role": "user", "content": user_input})
 
     with st.spinner("GPT is generating a response..."):
-        # Retrieve the **EXACT** answer from the knowledge base
-        assistant_reply = find_best_answer(user_input, kb_items)
+        # Retrieve the exact answer from the knowledge base
+        assistant_reply = find_best_answer(user_input, qna_pairs)
 
     # Append assistant reply to conversation history
     st.session_state.conversation.append({"role": "assistant", "content": assistant_reply})

@@ -28,7 +28,7 @@ knowledge_base = load_knowledge_base()
 
 # Function to flatten JSON structure for improved search
 def flatten_json(data, parent_key="", sep=" > "):
-    """ Converts a nested JSON into a searchable dictionary with key paths """
+    """Converts a nested JSON into a searchable dictionary with key paths."""
     items = {}
     
     if isinstance(data, dict):
@@ -60,7 +60,7 @@ def find_best_matches_prioritize_faq(query, kb_items, top_n=3, cutoff=0.2):
     """
     Prioritize FAQs in the matching process.
     """
-    faq_prefix = "faq > "
+    faq_prefix = "knowledge_base > sections > 6. Intapp FAQ > questions > "  # Adjust based on JSON structure
     faq_items = [item for item in kb_items if item[0].lower().startswith(faq_prefix)]
     other_items = [item for item in kb_items if not item[0].lower().startswith(faq_prefix)]
     

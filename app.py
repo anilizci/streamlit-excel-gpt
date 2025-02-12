@@ -37,8 +37,13 @@ def flatten_json(data, parent_key="", sep=" > "):
             items.update(flatten_json(v, new_key, sep=sep))
     elif isinstance(data, list):
         for index, v in enumerate(data):
-            new_key = f"{parent_key}[{index}]"
-            items.update(flatten_json(v, new_key, sep=sep))
+            if isinstance(v, dict):
+                for sub_k, sub_v in v.items():
+                    sub_key = f"{parent_key}[{index}] > {sub_k}"
+                    items.update(flatten_json(sub_v, sub_key, sep=sep))
+            else:
+                new_key = f"{parent_key}[{index}]"
+                items.update(flatten_json(v, new_key, sep=sep))
     else:
         items[parent_key] = str(data)
     
@@ -50,27 +55,40 @@ flat_knowledge_base = flatten_json(knowledge_base)
 # Build a list of (key, value) pairs
 kb_items = list(flat_knowledge_base.items())  # [(key_path, text), ...]
 
-# Function to find the closest match from the JSON knowledge base
-def find_best_match(query, knowledge_data):
-    keys = list(knowledge_data.keys())  # Extract all possible keys (questions)
-    matches = difflib.get_close_matches(query.lower(), keys, n=1, cutoff=0.2)  # Allow fuzzy matching
-    return matches[0] if matches else None
-
-# Function to find top N best matches based on values
-def find_best_matches(query, kb_items, top_n=3, cutoff=0.2):
+# Enhanced matching functions
+def find_best_matches_prioritize_faq(query, kb_items, top_n=3, cutoff=0.2):
     """
-    Return the top_n best fuzzy matches based on the KB *values*, not keys.
+    Prioritize FAQs in the matching process.
     """
-    # Extract just the text from each (key, value) pair
-    texts = [item[1].lower() for item in kb_items]
-    # Use difflib to get the closest matches from the list of texts
-    matches = difflib.get_close_matches(query.lower(), texts, n=top_n, cutoff=cutoff)
+    faq_prefix = "faq > "
+    faq_items = [item for item in kb_items if item[0].lower().startswith(faq_prefix)]
+    other_items = [item for item in kb_items if not item[0].lower().startswith(faq_prefix)]
     
-    # Find the actual (key, value) pairs that correspond to these text matches
+    # First, search within FAQs
+    faq_combined = [f"{k}: {v}".lower() for k, v in faq_items]
+    faq_matches = difflib.get_close_matches(query.lower(), faq_combined, n=top_n, cutoff=cutoff)
+    
+    # Then, search within other knowledge
+    other_combined = [f"{k}: {v}".lower() for k, v in other_items]
+    other_matches = difflib.get_close_matches(query.lower(), other_combined, n=top_n, cutoff=cutoff)
+    
+    # Combine results, ensuring no duplicates
+    combined_matches = faq_matches + other_matches
+    unique_matches = []
+    seen = set()
+    for match in combined_matches:
+        if match not in seen:
+            unique_matches.append(match)
+            seen.add(match)
+        if len(unique_matches) >= top_n:
+            break
+    
+    # Find corresponding (key, value) pairs
     result = []
-    for match in matches:
+    for match in unique_matches:
         for k, v in kb_items:
-            if v.lower() == match:  # exact match of the text
+            combined = f"{k}: {v}".lower()
+            if combined == match:
                 result.append((k, v))
                 break
     return result
@@ -84,7 +102,7 @@ df_cleaned = None  # Initialize df_cleaned to be used later
 
 if uploaded_file:
     df = pd.read_excel(uploaded_file, engine='openpyxl')
-    st.write("Preview of Uploaded Data:", df.head())
+    st.write("### Preview of Uploaded Data:", df.head())
 
     # Drop first two rows (metadata rows)
     df_cleaned = df.iloc[2:].reset_index(drop=True)
@@ -107,7 +125,7 @@ if uploaded_file:
         last_valid_index = df_cleaned[df_cleaned["Weighted Date Diff"].notna()].index[-1]
         df_cleaned = df_cleaned.iloc[:last_valid_index - 1]  # Remove last two rows
 
-    st.write("Preview of Cleaned Data:", df_cleaned.head())
+    st.write("### Preview of Cleaned Data:", df_cleaned.head())
 
     # Convert cleaned DataFrame to Excel format
     output = io.BytesIO()
@@ -132,16 +150,18 @@ if user_input:
     # Append user message to conversation history
     st.session_state.conversation.append({"role": "user", "content": user_input})
 
-    # Search for relevant knowledge in the JSON file
-    best_match = find_best_match(user_input, flat_knowledge_base)
+    # Search for relevant knowledge in the JSON file using prioritized matching
+    best_matches = find_best_matches_prioritize_faq(user_input, kb_items, top_n=3, cutoff=0.2)
 
-    if not best_match:
+    if not best_matches:
         assistant_reply = "I don't have information on that."
+        # Append assistant reply to conversation history
+        st.session_state.conversation.append({"role": "assistant", "content": assistant_reply})
     else:
-        relevant_info = flat_knowledge_base[best_match]
-        # Optionally, include relevant knowledge as a system prompt or context
+        # Combine relevant knowledge
+        context = "\n".join([f"[{k}]: {v}" for (k, v) in best_matches])
         st.session_state.conversation.append(
-            {"role": "system", "content": f"Relevant knowledge:\n{relevant_info}"}
+            {"role": "system", "content": f"Relevant knowledge found:\n{context}"}
         )
 
         try:
@@ -154,20 +174,44 @@ if user_input:
             st.session_state.conversation.append({"role": "assistant", "content": assistant_reply})
         except Exception as e:
             assistant_reply = f"Error communicating with OpenAI: {str(e)}"
+            st.session_state.conversation.append({"role": "assistant", "content": assistant_reply})
 
     # Display GPT's response
-    st.write("**GPT's Response:**", assistant_reply)
+    st.write("### **GPT's Response:**", assistant_reply)
 
 # Display conversation history
 st.subheader("Conversation History")
-for msg in st.session_state.conversation:
-    if msg['role'] == 'user':
-        st.markdown(f"**You:** {msg['content']}")
-    elif msg['role'] == 'assistant':
-        st.markdown(f"**GPT:** {msg['content']}")
-    elif msg['role'] == 'system':
-        # Optionally hide or style system messages differently
-        pass  # Currently not displaying system messages
+
+# Function to get the latest user and assistant messages
+def get_latest_exchange(conversation):
+    latest_user = None
+    latest_assistant = None
+    for msg in reversed(conversation):
+        if msg['role'] == 'assistant' and latest_assistant is None:
+            latest_assistant = msg['content']
+        elif msg['role'] == 'user' and latest_user is None:
+            latest_user = msg['content']
+        if latest_user and latest_assistant:
+            break
+    return latest_user, latest_assistant
+
+latest_user, latest_assistant = get_latest_exchange(st.session_state.conversation)
+
+# Display only the latest exchange
+if latest_user and latest_assistant:
+    st.markdown(f"**You:** {latest_user}")
+    st.markdown(f"**GPT:** {latest_assistant}")
+
+# Provide an expandable section to view full history
+with st.expander("Show Full Conversation History"):
+    for msg in st.session_state.conversation:
+        if msg['role'] == 'user':
+            st.markdown(f"**You:** {msg['content']}")
+        elif msg['role'] == 'assistant':
+            st.markdown(f"**GPT:** {msg['content']}")
+        elif msg['role'] == 'system':
+            # Optionally display system messages differently or skip them
+            pass  # Currently skipping system messages
 
 # Option to clear conversation
 if st.button("Clear Conversation"):

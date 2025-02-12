@@ -9,7 +9,7 @@ import openai  # Ensure openai==0.28.0 is installed
 # Initialize session state for conversation history
 if 'conversation' not in st.session_state:
     st.session_state.conversation = [
-        {"role": "system", "content": "You are an AI assistant that uses a provided knowledge base to answer questions. Remember the context of the conversation to handle follow-up questions."}
+        {"role": "system", "content": "You are an AI assistant that ONLY answers based on the provided knowledge base. If the answer is not in the knowledge base, reply with: 'I don't have information on that.'"}
     ]
 
 # Securely get OpenAI API key from Streamlit secrets
@@ -55,40 +55,19 @@ flat_knowledge_base = flatten_json(knowledge_base)
 # Build a list of (key, value) pairs
 kb_items = list(flat_knowledge_base.items())  # [(key_path, text), ...]
 
-# Enhanced matching functions
-def find_best_matches_prioritize_faq(query, kb_items, top_n=3, cutoff=0.2):
+# Function to find the best match for a user query
+def find_best_matches(query, kb_items, top_n=3, cutoff=0.3):
     """
-    Prioritize FAQs in the matching process.
+    Return the best fuzzy matches based on the KB values, not keys.
     """
-    faq_prefix = "knowledge_base > sections > 6. Intapp FAQ > questions > "  # Adjust based on JSON structure
-    faq_items = [item for item in kb_items if item[0].lower().startswith(faq_prefix)]
-    other_items = [item for item in kb_items if not item[0].lower().startswith(faq_prefix)]
+    kb_values = [item[1].lower() for item in kb_items]
+    matches = difflib.get_close_matches(query.lower(), kb_values, n=top_n, cutoff=cutoff)
     
-    # First, search within FAQs
-    faq_combined = [f"{k}: {v}".lower() for k, v in faq_items]
-    faq_matches = difflib.get_close_matches(query.lower(), faq_combined, n=top_n, cutoff=cutoff)
-    
-    # Then, search within other knowledge
-    other_combined = [f"{k}: {v}".lower() for k, v in other_items]
-    other_matches = difflib.get_close_matches(query.lower(), other_combined, n=top_n, cutoff=cutoff)
-    
-    # Combine results, ensuring no duplicates
-    combined_matches = faq_matches + other_matches
-    unique_matches = []
-    seen = set()
-    for match in combined_matches:
-        if match not in seen:
-            unique_matches.append(match)
-            seen.add(match)
-        if len(unique_matches) >= top_n:
-            break
-    
-    # Find corresponding (key, value) pairs
+    # Find the actual (key, value) pairs that correspond to these text matches
     result = []
-    for match in unique_matches:
+    for match in matches:
         for k, v in kb_items:
-            combined = f"{k}: {v}".lower()
-            if combined == match:
+            if v.lower() == match:
                 result.append((k, v))
                 break
     return result
@@ -152,30 +131,18 @@ if user_input:
 
     with st.spinner("GPT is generating a response..."):
         # Search for relevant knowledge in the JSON file using prioritized matching
-        best_matches = find_best_matches_prioritize_faq(user_input, kb_items, top_n=3, cutoff=0.2)
+        best_matches = find_best_matches(user_input, kb_items, top_n=3, cutoff=0.3)
 
         if not best_matches:
             assistant_reply = "I don't have information on that."
         else:
-            # Combine relevant knowledge
-            context = "\n".join([f"[{k}]: {v}" for (k, v) in best_matches])
-            st.session_state.conversation.append(
-                {"role": "system", "content": f"Relevant knowledge found:\n{context}"}
-            )
-
-            try:
-                response = openai.ChatCompletion.create(
-                    model="gpt-3.5-turbo",
-                    messages=st.session_state.conversation
-                )
-                assistant_reply = response.choices[0].message.content
-            except Exception as e:
-                assistant_reply = f"Error communicating with OpenAI: {str(e)}"
+            # Extract the best response from knowledge base
+            assistant_reply = best_matches[0][1]  # Directly fetch the first best match value
 
         # Append assistant reply to conversation history
         st.session_state.conversation.append({"role": "assistant", "content": assistant_reply})
 
-# Display only the conversation history (hide duplicate response)
+# Display only the conversation history
 st.subheader("Conversation History")
 
 # Display latest user message and GPT response only

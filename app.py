@@ -73,13 +73,14 @@ if uploaded_file:
     )
 
 # Section: GPT Chat Interface
-st.header("Chat with GPT")
+st.header("Chat with GPT (Only Based on Knowledge Base)")
 
 user_input = st.text_input("Ask GPT anything:")
 
 if user_input:
     messages = [
-        {"role": "system", "content": "You are a helpful assistant trained to answer questions using a knowledge base."}
+        {"role": "system", "content": "You are an AI assistant that ONLY answers based on the provided knowledge base. "
+                                      "If the answer is not in the knowledge base, reply with: 'I don't have information on that.'"}
     ]
 
     # Search for relevant knowledge in the JSON file
@@ -88,20 +89,22 @@ if user_input:
         if key.lower() in user_input.lower():  # Check if question matches any key in JSON
             relevant_info.append(f"{key}: {value}")
 
-    if relevant_info:
+    # If no relevant knowledge is found, return an error message
+    if not relevant_info:
+        gpt_response = "I don't have information on that."
+    else:
         messages.append({"role": "system", "content": f"Relevant knowledge: {' '.join(relevant_info)}"})
+        messages.append({"role": "user", "content": user_input})
 
-    messages.append({"role": "user", "content": user_input})
+        try:
+            response = client.chat.completions.create(
+                model="gpt-4o",
+                messages=messages
+            )
 
-    try:
-        response = client.chat.completions.create(
-            model="gpt-4o",
-            messages=messages
-        )
-
-        gpt_response = response.choices[0].message.content
-    except Exception as e:
-        gpt_response = f"Error communicating with OpenAI: {str(e)}"
+            gpt_response = response.choices[0].message.content
+        except Exception as e:
+            gpt_response = f"Error communicating with OpenAI: {str(e)}"
 
     # Display GPT's response
     st.write("GPT's Response:", gpt_response)

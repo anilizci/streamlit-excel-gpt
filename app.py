@@ -3,6 +3,7 @@ import pandas as pd
 import io
 import os
 import json
+import difflib
 from openai import OpenAI
 
 # Securely get OpenAI API key from Streamlit secrets
@@ -23,6 +24,12 @@ def load_knowledge_base():
         return {}
 
 knowledge_base = load_knowledge_base()
+
+# Function to find the best matching key from the knowledge base
+def find_best_match(user_question, knowledge_data):
+    keys = knowledge_data.keys()
+    matches = difflib.get_close_matches(user_question.lower(), keys, n=1, cutoff=0.4)  # Allow partial matching
+    return matches[0] if matches else None
 
 # App title
 st.title("Excel File Cleaner & GPT Assistant")
@@ -83,17 +90,15 @@ if user_input:
                                       "If the answer is not in the knowledge base, reply with: 'I don't have information on that.'"}
     ]
 
-    # Search for relevant knowledge in the JSON file
-    relevant_info = []
-    for key, value in knowledge_base.items():
-        if key.lower() in user_input.lower():  # Check if question matches any key in JSON
-            relevant_info.append(f"{key}: {value}")
+    # Find best matching knowledge key
+    best_match = find_best_match(user_input, knowledge_base)
 
-    # If no relevant knowledge is found, return an error message
-    if not relevant_info:
+    # If no match is found, return "I don't have information on that"
+    if not best_match:
         gpt_response = "I don't have information on that."
     else:
-        messages.append({"role": "system", "content": f"Relevant knowledge: {' '.join(relevant_info)}"})
+        relevant_info = knowledge_base[best_match]
+        messages.append({"role": "system", "content": f"Relevant knowledge: {best_match}: {relevant_info}"})
         messages.append({"role": "user", "content": user_input})
 
         try:

@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import io
 
 # App title
 st.title("Excel File Cleaner & GPT Assistant")
@@ -34,5 +35,16 @@ if uploaded_file:
 
     st.write("Preview of Cleaned Data:", df_cleaned.head())
 
-    # Download cleaned file
-    st.download_button("Download Cleaned Excel", df_cleaned.to_csv(index=False).encode(), "cleaned_data.csv", "text/csv")
+    # Convert cleaned DataFrame to Excel format
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df_cleaned.to_excel(writer, index=False, sheet_name="Cleaned Data")
+    output.seek(0)
+
+    # Provide download button for Excel file
+    st.download_button(
+        label="Download Cleaned Excel",
+        data=output,
+        file_name="cleaned_data.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )

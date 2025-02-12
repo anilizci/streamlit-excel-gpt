@@ -14,7 +14,7 @@ if not api_key:
 
 client = OpenAI(api_key=api_key)
 
-# Load knowledge base from JSON file
+# Load knowledge base from JSON file (Hidden from UI)
 def load_knowledge_base():
     try:
         with open("knowledge_base.json", "r", encoding="utf-8") as file:
@@ -23,7 +23,7 @@ def load_knowledge_base():
         st.error("Knowledge base file not found! Make sure 'knowledge_base.json' is in the project folder.")
         return {}
 
-knowledge_base = load_knowledge_base()
+knowledge_base = load_knowledge_base()  # No longer displayed
 
 # Function to search JSON for relevant answers
 def search_knowledge_base(query, knowledge_data):
@@ -46,9 +46,6 @@ def search_knowledge_base(query, knowledge_data):
     recursive_search(knowledge_data)
 
     return results
-
-# Debugging: Show knowledge base contents in Streamlit
-st.write("Knowledge Base Loaded:", knowledge_base)
 
 # App title
 st.title("Excel File Cleaner & GPT Assistant")
@@ -104,9 +101,6 @@ st.header("Chat with GPT (Only Based on Knowledge Base)")
 user_input = st.text_input("Ask GPT anything:")
 
 if user_input:
-    # Debugging: Print user query
-    st.write("User Query:", user_input)
-
     # Search for relevant knowledge in the JSON file
     relevant_info = search_knowledge_base(user_input, knowledge_base)
 

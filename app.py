@@ -25,32 +25,32 @@ def load_knowledge_base():
 
 knowledge_base = load_knowledge_base()
 
-# Function to find the closest matching question in JSON
-def find_best_match(query, knowledge_data):
-    matches = []
+# Function to flatten JSON structure for improved search
+def flatten_json(data, parent_key="", sep=" > "):
+    """ Converts a nested JSON into a searchable dictionary with key paths """
+    items = {}
     
-    # Convert JSON keys into a flat list
-    def flatten_json(data, parent_key=""):
-        """ Flatten JSON structure to create searchable key-value pairs. """
-        for key, value in data.items():
-            new_key = f"{parent_key} > {key}" if parent_key else key
-            if isinstance(value, dict):
-                flatten_json(value, new_key)
-            elif isinstance(value, list):
-                for index, item in enumerate(value):
-                    flatten_json({f"{new_key}[{index}]": item}, parent_key)
-            else:
-                matches.append((new_key, str(value)))  # Store key-value pairs for searching
+    if isinstance(data, dict):
+        for k, v in data.items():
+            new_key = f"{parent_key}{sep}{k}" if parent_key else k
+            items.update(flatten_json(v, new_key, sep=sep))
+    elif isinstance(data, list):
+        for index, v in enumerate(data):
+            new_key = f"{parent_key}[{index}]"
+            items.update(flatten_json(v, new_key, sep=sep))
+    else:
+        items[parent_key] = str(data)
+    
+    return items
 
-    flatten_json(knowledge_data)
+# Flatten the knowledge base for better searching
+flat_knowledge_base = flatten_json(knowledge_base)
 
-    # Extract keys and values
-    keys = [match[0] for match in matches]
-    values = {match[0]: match[1] for match in matches}
-
-    # Use fuzzy matching to find the closest key
-    best_match = difflib.get_close_matches(query.lower(), keys, n=1, cutoff=0.3)
-    return values.get(best_match[0], None) if best_match else None
+# Function to find the closest match from the JSON knowledge base
+def find_best_match(query, knowledge_data):
+    keys = list(knowledge_data.keys())  # Extract all possible keys (questions)
+    matches = difflib.get_close_matches(query.lower(), keys, n=1, cutoff=0.2)  # Allow fuzzy matching
+    return matches[0] if matches else None
 
 # App title
 st.title("Excel File Cleaner & GPT Assistant")
@@ -107,11 +107,12 @@ user_input = st.text_input("Ask GPT anything:")
 
 if user_input:
     # Search for relevant knowledge in the JSON file
-    relevant_info = find_best_match(user_input, knowledge_base)
+    best_match = find_best_match(user_input, flat_knowledge_base)
 
-    if not relevant_info:
+    if not best_match:
         gpt_response = "I don't have information on that."
     else:
+        relevant_info = flat_knowledge_base[best_match]
         messages = [
             {"role": "system", "content": "You are an AI assistant that ONLY answers based on the provided knowledge base. "
                                           "If the answer is not in the knowledge base, reply with: 'I don't have information on that.'"},

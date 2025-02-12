@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import io
 import os
+import json
 from openai import OpenAI
 
 # Securely get OpenAI API key from Streamlit secrets
@@ -11,6 +12,17 @@ if not api_key:
     st.stop()
 
 client = OpenAI(api_key=api_key)
+
+# Load knowledge base from JSON file
+def load_knowledge_base():
+    try:
+        with open("knowledge_base.json", "r", encoding="utf-8") as file:
+            return json.load(file)  # Load JSON as a dictionary
+    except FileNotFoundError:
+        st.error("Knowledge base file not found! Make sure 'knowledge_base.json' is in the project folder.")
+        return {}
+
+knowledge_base = load_knowledge_base()
 
 # App title
 st.title("Excel File Cleaner & GPT Assistant")
@@ -67,15 +79,19 @@ user_input = st.text_input("Ask GPT anything:")
 
 if user_input:
     messages = [
-        {"role": "system", "content": "You are a helpful assistant trained to answer questions."},
-        {"role": "user", "content": user_input}
+        {"role": "system", "content": "You are a helpful assistant trained to answer questions using a knowledge base."}
     ]
 
-    # If Excel data is available, include it in the context
-    if df_cleaned is not None:
-        messages.append(
-            {"role": "system", "content": f"The user has uploaded an Excel file. Here is the first few rows of cleaned data:\n{df_cleaned.head().to_string()}"}
-        )
+    # Search for relevant knowledge in the JSON file
+    relevant_info = []
+    for key, value in knowledge_base.items():
+        if key.lower() in user_input.lower():  # Check if question matches any key in JSON
+            relevant_info.append(f"{key}: {value}")
+
+    if relevant_info:
+        messages.append({"role": "system", "content": f"Relevant knowledge: {' '.join(relevant_info)}"})
+
+    messages.append({"role": "user", "content": user_input})
 
     try:
         response = client.chat.completions.create(

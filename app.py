@@ -71,17 +71,14 @@ if user_input:
             {"role": "system", "content": f"The user has uploaded an Excel file. Here is the first few rows of cleaned data:\n{df_cleaned.head().to_string()}"}
         )
 
- response = openai.ChatCompletion.create(
-    model="gpt-4",
-    messages=messages
-)
+    # Call GPT API and get response
+    response = openai.ChatCompletion.create(
+        model="gpt-4",
+        messages=messages
+    )
 
-# Extract GPT response safely
-gpt_response = response["choices"][0]["message"]["content"]
-
-# Display GPT's response
-st.write("GPT's Response:", gpt_response)
-
+    # Extract GPT response safely
+    gpt_response = response["choices"][0]["message"]["content"]
 
     # Display GPT's response
-    st.write("GPT's Response:", response["choices"][0]["message"]["content"])
+    st.write("GPT's Response:", gpt_response)

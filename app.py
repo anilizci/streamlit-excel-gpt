@@ -71,9 +71,7 @@ if user_input:
             {"role": "system", "content": f"The user has uploaded an Excel file. Here is the first few rows of cleaned data:\n{df_cleaned.head().to_string()}"}
         )
 
-    response = openai.ChatCompletion.create(
-        model="gpt-4",
-        messages=messages
+    response = openai.ChatCompletion.create( model="gpt-4", messages=messages ).get("choices", [{}])[0].get("message", {}).get("content", "No response from GPT.")
     )
 
     # Display GPT's response

@@ -55,22 +55,15 @@ flat_knowledge_base = flatten_json(knowledge_base)
 # Build a list of (key, value) pairs
 kb_items = list(flat_knowledge_base.items())  # [(key_path, text), ...]
 
-# Function to find the best match for a user query
-def find_best_matches(query, kb_items, top_n=3, cutoff=0.3):
+# Function to find the best answer for a user query
+def find_best_answer(query, kb_items, cutoff=0.3):
     """
-    Return the best fuzzy matches based on the KB values, not keys.
+    Return the best exact match based on the question, ensuring we retrieve the correct answer.
     """
-    kb_values = [item[1].lower() for item in kb_items]
-    matches = difflib.get_close_matches(query.lower(), kb_values, n=top_n, cutoff=cutoff)
-    
-    # Find the actual (key, value) pairs that correspond to these text matches
-    result = []
-    for match in matches:
-        for k, v in kb_items:
-            if v.lower() == match:
-                result.append((k, v))
-                break
-    return result
+    for k, v in kb_items:
+        if query.lower() in k.lower():
+            return v  # Return the correct answer from the knowledge base
+    return None  # No relevant answer found
 
 # App title
 st.title("Excel File Cleaner & GPT Assistant")
@@ -130,17 +123,14 @@ if user_input:
     st.session_state.conversation.append({"role": "user", "content": user_input})
 
     with st.spinner("GPT is generating a response..."):
-        # Search for relevant knowledge in the JSON file using prioritized matching
-        best_matches = find_best_matches(user_input, kb_items, top_n=3, cutoff=0.3)
+        # Retrieve the best-matching answer from the knowledge base
+        assistant_reply = find_best_answer(user_input, kb_items)
 
-        if not best_matches:
+        if not assistant_reply:
             assistant_reply = "I don't have information on that."
-        else:
-            # Extract the best response from knowledge base
-            assistant_reply = best_matches[0][1]  # Directly fetch the first best match value
 
-        # Append assistant reply to conversation history
-        st.session_state.conversation.append({"role": "assistant", "content": assistant_reply})
+    # Append assistant reply to conversation history
+    st.session_state.conversation.append({"role": "assistant", "content": assistant_reply})
 
 # Display only the conversation history
 st.subheader("Conversation History")

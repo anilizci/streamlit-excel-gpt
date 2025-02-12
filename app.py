@@ -156,8 +156,6 @@ if user_input:
 
         if not best_matches:
             assistant_reply = "I don't have information on that."
-            # Append assistant reply to conversation history
-            st.session_state.conversation.append({"role": "assistant", "content": assistant_reply})
         else:
             # Combine relevant knowledge
             context = "\n".join([f"[{k}]: {v}" for (k, v) in best_matches])
@@ -167,56 +165,31 @@ if user_input:
 
             try:
                 response = openai.ChatCompletion.create(
-                    model="gpt-3.5-turbo",  # Ensure correct model name
+                    model="gpt-3.5-turbo",
                     messages=st.session_state.conversation
                 )
                 assistant_reply = response.choices[0].message.content
-                # Append assistant reply to conversation history
-                st.session_state.conversation.append({"role": "assistant", "content": assistant_reply})
             except Exception as e:
                 assistant_reply = f"Error communicating with OpenAI: {str(e)}"
-                st.session_state.conversation.append({"role": "assistant", "content": assistant_reply})
 
-    # Display GPT's response
-    st.write("### **GPT's Response:**", assistant_reply)
+        # Append assistant reply to conversation history
+        st.session_state.conversation.append({"role": "assistant", "content": assistant_reply})
 
-# Display conversation history
+# Display only the conversation history (hide duplicate response)
 st.subheader("Conversation History")
 
-# Function to get the latest user and assistant messages
-def get_latest_exchange(conversation):
-    latest_user = None
-    latest_assistant = None
-    for msg in reversed(conversation):
-        if msg['role'] == 'assistant' and latest_assistant is None:
-            latest_assistant = msg['content']
-        elif msg['role'] == 'user' and latest_user is None:
-            latest_user = msg['content']
-        if latest_user and latest_assistant:
-            break
-    return latest_user, latest_assistant
+# Display latest user message and GPT response only
+if len(st.session_state.conversation) > 1:
+    st.markdown(f"**You:** {st.session_state.conversation[-2]['content']}")
+    st.markdown(f"**GPT:** {st.session_state.conversation[-1]['content']}")
 
-latest_user, latest_assistant = get_latest_exchange(st.session_state.conversation)
-
-# Display only the latest exchange
-if latest_user and latest_assistant:
-    st.markdown(f"**You:** {latest_user}")
-    st.markdown(f"**GPT:** {latest_assistant}")
-
-# Provide an expandable section to view full history
+# Expandable full conversation history
 with st.expander("Show Full Conversation History"):
     for msg in st.session_state.conversation:
-        if msg['role'] == 'user':
-            st.markdown(f"**You:** {msg['content']}")
-        elif msg['role'] == 'assistant':
-            st.markdown(f"**GPT:** {msg['content']}")
-        elif msg['role'] == 'system':
-            # Optionally display system messages differently or skip them
-            pass  # Currently skipping system messages
+        if msg['role'] in ["user", "assistant"]:
+            st.markdown(f"**{msg['role'].capitalize()}**: {msg['content']}")
 
-# Option to clear conversation
+# Clear conversation button
 if st.button("Clear Conversation"):
-    st.session_state.conversation = [
-        {"role": "system", "content": "You are an AI assistant that uses a provided knowledge base to answer questions. Remember the context of the conversation to handle follow-up questions."}
-    ]
+    st.session_state.conversation = [{"role": "system", "content": "You are an AI assistant that uses a provided knowledge base to answer questions."}]
     st.experimental_rerun()

@@ -1,12 +1,14 @@
 import streamlit as st
 import pandas as pd
 import io
+import openai
 
 # App title
 st.title("Excel File Cleaner & GPT Assistant")
 
 # File upload
 uploaded_file = st.file_uploader("Upload an Excel file", type=["xlsx"])
+df_cleaned = None  # Initialize df_cleaned to be used later
 
 if uploaded_file:
     df = pd.read_excel(uploaded_file, engine='openpyxl')
@@ -49,28 +51,30 @@ if uploaded_file:
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
 
-
-import openai
-
 # Section: GPT Chat Interface
-st.header("Chat with GPT about Your Data")
+st.header("Chat with GPT")
 
-if uploaded_file:  # Ensure an Excel file is uploaded before chat is available
-    user_input = st.text_input("Ask GPT about your Excel data:")
-    
-    if user_input:
-        # Call GPT (Replace 'your-openai-api-key' with your actual OpenAI API key)
-        openai.api_key = "your-openai-api-key"
-        
-        response = openai.ChatCompletion.create(
-            model="gpt-4",
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant trained to answer questions about Excel data."},
-                {"role": "user", "content": user_input}
-            ]
+user_input = st.text_input("Ask GPT anything:")
+
+if user_input:
+    # Call GPT (Replace 'your-openai-api-key' with your actual OpenAI API key)
+    openai.api_key = "your-openai-api-key"
+
+    messages = [
+        {"role": "system", "content": "You are a helpful assistant trained to answer questions."},
+        {"role": "user", "content": user_input}
+    ]
+
+    # If Excel data is available, include it in the context
+    if df_cleaned is not None:
+        messages.append(
+            {"role": "system", "content": f"The user has uploaded an Excel file. Here is the first few rows of cleaned data:\n{df_cleaned.head().to_string()}"}
         )
 
-        # Display GPT's response
-        st.write("GPT's Response:", response["choices"][0]["message"]["content"])
+    response = openai.ChatCompletion.create(
+        model="gpt-4",
+        messages=messages
+    )
 
-
+    # Display GPT's response
+    st.write("GPT's Response:", response["choices"][0]["message"]["content"])

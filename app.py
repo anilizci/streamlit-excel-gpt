@@ -1,7 +1,16 @@
 import streamlit as st
 import pandas as pd
 import io
-import openai
+import os
+from openai import OpenAI
+
+# Securely get OpenAI API key from Streamlit secrets
+api_key = os.getenv("OPENAI_API_KEY")
+if not api_key:
+    st.error("OpenAI API key is missing! Add it to Streamlit secrets.")
+    st.stop()
+
+client = OpenAI(api_key=api_key)
 
 # App title
 st.title("Excel File Cleaner & GPT Assistant")
@@ -57,9 +66,6 @@ st.header("Chat with GPT")
 user_input = st.text_input("Ask GPT anything:")
 
 if user_input:
-    # Call GPT (Replace 'your-openai-api-key' with your actual OpenAI API key)
-    openai.api_key = "your-openai-api-key"
-
     messages = [
         {"role": "system", "content": "You are a helpful assistant trained to answer questions."},
         {"role": "user", "content": user_input}
@@ -71,14 +77,15 @@ if user_input:
             {"role": "system", "content": f"The user has uploaded an Excel file. Here is the first few rows of cleaned data:\n{df_cleaned.head().to_string()}"}
         )
 
-    # Call GPT API and get response
-    response = openai.ChatCompletion.create(
-        model="gpt-4",
-        messages=messages
-    )
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=messages
+        )
 
-    # Extract GPT response safely
-    gpt_response = response["choices"][0]["message"]["content"]
+        gpt_response = response.choices[0].message.content
+    except Exception as e:
+        gpt_response = f"Error communicating with OpenAI: {str(e)}"
 
     # Display GPT's response
     st.write("GPT's Response:", gpt_response)

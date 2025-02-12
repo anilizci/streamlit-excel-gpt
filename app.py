@@ -14,7 +14,7 @@ if not api_key:
 
 client = OpenAI(api_key=api_key)
 
-# Load knowledge base from JSON file (Hidden from UI)
+# Load knowledge base from JSON file
 def load_knowledge_base():
     try:
         with open("knowledge_base.json", "r", encoding="utf-8") as file:
@@ -23,12 +23,23 @@ def load_knowledge_base():
         st.error("Knowledge base file not found! Make sure 'knowledge_base.json' is in the project folder.")
         return {}
 
-knowledge_base = load_knowledge_base()  # No longer displayed
+knowledge_base = load_knowledge_base()
+
+# Function to find the closest matching key in JSON
+def find_best_match(query, knowledge_data):
+    keys = list(knowledge_data.keys())  # Extract all possible question keys
+    matches = difflib.get_close_matches(query.lower(), keys, n=1, cutoff=0.3)  # Lower cutoff for better fuzzy matching
+    return matches[0] if matches else None
 
 # Function to search JSON for relevant answers
 def search_knowledge_base(query, knowledge_data):
-    results = []
+    best_match = find_best_match(query, knowledge_data)  # Try to match the question with existing knowledge keys
     
+    if best_match:
+        return [f"**{best_match}:** {knowledge_data[best_match]}"]
+    
+    # If no direct match, do a deeper search
+    results = []
     def recursive_search(data, path=""):
         """ Recursively searches through the JSON structure """
         if isinstance(data, dict):

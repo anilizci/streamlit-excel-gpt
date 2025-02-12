@@ -27,6 +27,11 @@ if uploaded_file:
     # Drop fully empty rows
     df_cleaned.dropna(how='all', inplace=True)
 
+    # Identify and remove last two rows based on "Weighted Date Diff" column
+    if "Weighted Date Diff" in df_cleaned.columns:
+        last_valid_index = df_cleaned[df_cleaned["Weighted Date Diff"].notna()].index[-1]
+        df_cleaned = df_cleaned.iloc[:last_valid_index - 1]  # Remove last two rows
+
     st.write("Preview of Cleaned Data:", df_cleaned.head())
 
     # Download cleaned file

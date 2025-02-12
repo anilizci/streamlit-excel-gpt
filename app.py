@@ -24,6 +24,7 @@ def load_knowledge_base():
         return {}
 
 knowledge_base = load_knowledge_base()
+st.write("Loaded Knowledge Base:", knowledge_base)  # Debugging output
 
 # Function to find the best matching key from the knowledge base
 def find_best_match(user_question, knowledge_data):

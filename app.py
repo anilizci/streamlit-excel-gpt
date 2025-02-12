@@ -16,7 +16,7 @@ if uploaded_file:
     df = df.iloc[1:].reset_index(drop=True)  # Drops the first row
 
     # Assign proper column headers
-    df.columns = df.iloc[0]  # Set second row as headers
+    df.columns = df.iloc[0].fillna("Unnamed")  # Set second row as headers, replacing NaNs
     df = df[1:].reset_index(drop=True)
 
     # Drop empty and unnamed columns
@@ -25,6 +25,9 @@ if uploaded_file:
 
     # Drop fully empty rows
     df.dropna(how='all', inplace=True)
+
+    # Ensure column names are strings
+    df.columns = df.columns.astype(str)
 
     st.write("Preview of Cleaned Data:", df.head())
 

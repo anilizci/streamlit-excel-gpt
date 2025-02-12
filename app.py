@@ -25,38 +25,32 @@ def load_knowledge_base():
 
 knowledge_base = load_knowledge_base()
 
-# Function to find the closest matching key in JSON
+# Function to find the closest matching question in JSON
 def find_best_match(query, knowledge_data):
-    keys = list(knowledge_data.keys())  # Extract all possible question keys
-    matches = difflib.get_close_matches(query.lower(), keys, n=1, cutoff=0.3)  # Lower cutoff for better fuzzy matching
-    return matches[0] if matches else None
-
-# Function to search JSON for relevant answers
-def search_knowledge_base(query, knowledge_data):
-    best_match = find_best_match(query, knowledge_data)  # Try to match the question with existing knowledge keys
+    matches = []
     
-    if best_match:
-        return [f"**{best_match}:** {knowledge_data[best_match]}"]
-    
-    # If no direct match, do a deeper search
-    results = []
-    def recursive_search(data, path=""):
-        """ Recursively searches through the JSON structure """
-        if isinstance(data, dict):
-            for key, value in data.items():
-                new_path = f"{path} > {key}" if path else key
-                if isinstance(value, (dict, list)):
-                    recursive_search(value, new_path)
-                else:
-                    if query.lower() in str(value).lower() or query.lower() in key.lower():
-                        results.append(f"**{new_path}:** {value}")
-        elif isinstance(data, list):
-            for index, item in enumerate(data):
-                recursive_search(item, f"{path}[{index}]")
+    # Convert JSON keys into a flat list
+    def flatten_json(data, parent_key=""):
+        """ Flatten JSON structure to create searchable key-value pairs. """
+        for key, value in data.items():
+            new_key = f"{parent_key} > {key}" if parent_key else key
+            if isinstance(value, dict):
+                flatten_json(value, new_key)
+            elif isinstance(value, list):
+                for index, item in enumerate(value):
+                    flatten_json({f"{new_key}[{index}]": item}, parent_key)
+            else:
+                matches.append((new_key, str(value)))  # Store key-value pairs for searching
 
-    recursive_search(knowledge_data)
+    flatten_json(knowledge_data)
 
-    return results
+    # Extract keys and values
+    keys = [match[0] for match in matches]
+    values = {match[0]: match[1] for match in matches}
+
+    # Use fuzzy matching to find the closest key
+    best_match = difflib.get_close_matches(query.lower(), keys, n=1, cutoff=0.3)
+    return values.get(best_match[0], None) if best_match else None
 
 # App title
 st.title("Excel File Cleaner & GPT Assistant")
@@ -113,16 +107,15 @@ user_input = st.text_input("Ask GPT anything:")
 
 if user_input:
     # Search for relevant knowledge in the JSON file
-    relevant_info = search_knowledge_base(user_input, knowledge_base)
+    relevant_info = find_best_match(user_input, knowledge_base)
 
     if not relevant_info:
         gpt_response = "I don't have information on that."
     else:
-        formatted_info = "\n\n".join(relevant_info)
         messages = [
             {"role": "system", "content": "You are an AI assistant that ONLY answers based on the provided knowledge base. "
                                           "If the answer is not in the knowledge base, reply with: 'I don't have information on that.'"},
-            {"role": "system", "content": f"Relevant knowledge found:\n\n{formatted_info}"},
+            {"role": "system", "content": f"Relevant knowledge found:\n\n{relevant_info}"},
             {"role": "user", "content": user_input}
         ]
 

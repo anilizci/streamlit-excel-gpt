@@ -150,31 +150,32 @@ if user_input:
     # Append user message to conversation history
     st.session_state.conversation.append({"role": "user", "content": user_input})
 
-    # Search for relevant knowledge in the JSON file using prioritized matching
-    best_matches = find_best_matches_prioritize_faq(user_input, kb_items, top_n=3, cutoff=0.2)
+    with st.spinner("GPT is generating a response..."):
+        # Search for relevant knowledge in the JSON file using prioritized matching
+        best_matches = find_best_matches_prioritize_faq(user_input, kb_items, top_n=3, cutoff=0.2)
 
-    if not best_matches:
-        assistant_reply = "I don't have information on that."
-        # Append assistant reply to conversation history
-        st.session_state.conversation.append({"role": "assistant", "content": assistant_reply})
-    else:
-        # Combine relevant knowledge
-        context = "\n".join([f"[{k}]: {v}" for (k, v) in best_matches])
-        st.session_state.conversation.append(
-            {"role": "system", "content": f"Relevant knowledge found:\n{context}"}
-        )
-
-        try:
-            response = openai.ChatCompletion.create(
-                model="gpt-3.5-turbo",  # Ensure correct model name
-                messages=st.session_state.conversation
-            )
-            assistant_reply = response.choices[0].message.content
+        if not best_matches:
+            assistant_reply = "I don't have information on that."
             # Append assistant reply to conversation history
             st.session_state.conversation.append({"role": "assistant", "content": assistant_reply})
-        except Exception as e:
-            assistant_reply = f"Error communicating with OpenAI: {str(e)}"
-            st.session_state.conversation.append({"role": "assistant", "content": assistant_reply})
+        else:
+            # Combine relevant knowledge
+            context = "\n".join([f"[{k}]: {v}" for (k, v) in best_matches])
+            st.session_state.conversation.append(
+                {"role": "system", "content": f"Relevant knowledge found:\n{context}"}
+            )
+
+            try:
+                response = openai.ChatCompletion.create(
+                    model="gpt-3.5-turbo",  # Ensure correct model name
+                    messages=st.session_state.conversation
+                )
+                assistant_reply = response.choices[0].message.content
+                # Append assistant reply to conversation history
+                st.session_state.conversation.append({"role": "assistant", "content": assistant_reply})
+            except Exception as e:
+                assistant_reply = f"Error communicating with OpenAI: {str(e)}"
+                st.session_state.conversation.append({"role": "assistant", "content": assistant_reply})
 
     # Display GPT's response
     st.write("### **GPT's Response:**", assistant_reply)

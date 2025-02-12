@@ -24,13 +24,31 @@ def load_knowledge_base():
         return {}
 
 knowledge_base = load_knowledge_base()
-st.write("Loaded Knowledge Base:", knowledge_base)  # Debugging output
 
-# Function to find the best matching key from the knowledge base
-def find_best_match(user_question, knowledge_data):
-    keys = knowledge_data.keys()
-    matches = difflib.get_close_matches(user_question.lower(), keys, n=1, cutoff=0.4)  # Allow partial matching
-    return matches[0] if matches else None
+# Function to search JSON for relevant answers
+def search_knowledge_base(query, knowledge_data):
+    results = []
+    
+    def recursive_search(data, path=""):
+        """ Recursively searches through the JSON structure """
+        if isinstance(data, dict):
+            for key, value in data.items():
+                new_path = f"{path} > {key}" if path else key
+                if isinstance(value, (dict, list)):
+                    recursive_search(value, new_path)
+                else:
+                    if query.lower() in str(value).lower() or query.lower() in key.lower():
+                        results.append(f"**{new_path}:** {value}")
+        elif isinstance(data, list):
+            for index, item in enumerate(data):
+                recursive_search(item, f"{path}[{index}]")
+
+    recursive_search(knowledge_data)
+
+    return results
+
+# Debugging: Show knowledge base contents in Streamlit
+st.write("Knowledge Base Loaded:", knowledge_base)
 
 # App title
 st.title("Excel File Cleaner & GPT Assistant")
@@ -86,21 +104,22 @@ st.header("Chat with GPT (Only Based on Knowledge Base)")
 user_input = st.text_input("Ask GPT anything:")
 
 if user_input:
-    messages = [
-        {"role": "system", "content": "You are an AI assistant that ONLY answers based on the provided knowledge base. "
-                                      "If the answer is not in the knowledge base, reply with: 'I don't have information on that.'"}
-    ]
+    # Debugging: Print user query
+    st.write("User Query:", user_input)
 
-    # Find best matching knowledge key
-    best_match = find_best_match(user_input, knowledge_base)
+    # Search for relevant knowledge in the JSON file
+    relevant_info = search_knowledge_base(user_input, knowledge_base)
 
-    # If no match is found, return "I don't have information on that"
-    if not best_match:
+    if not relevant_info:
         gpt_response = "I don't have information on that."
     else:
-        relevant_info = knowledge_base[best_match]
-        messages.append({"role": "system", "content": f"Relevant knowledge: {best_match}: {relevant_info}"})
-        messages.append({"role": "user", "content": user_input})
+        formatted_info = "\n\n".join(relevant_info)
+        messages = [
+            {"role": "system", "content": "You are an AI assistant that ONLY answers based on the provided knowledge base. "
+                                          "If the answer is not in the knowledge base, reply with: 'I don't have information on that.'"},
+            {"role": "system", "content": f"Relevant knowledge found:\n\n{formatted_info}"},
+            {"role": "user", "content": user_input}
+        ]
 
         try:
             response = client.chat.completions.create(

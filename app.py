@@ -152,17 +152,20 @@ projection_triggers = [
 ]
 
 if user_input:
+    # Add user message to the conversation
     st.session_state.conversation.append({"role": "user", "content": user_input})
     
-    # If the question is a projection trigger...
+    # Check if the query triggers projection
     if any(trigger in user_input.lower() for trigger in projection_triggers):
-        # If no file is uploaded, prompt the user to upload one.
+        # If no file is uploaded, only show a single GPT response prompting the user to upload a file.
         if df_cleaned is None:
             st.warning("Please upload an Excel file to calculate your projection.")
-            assistant_reply = find_best_answer(user_input, qna_pairs)
+            # This is the only GPT response in this scenario
+            assistant_reply = "Please upload an Excel file to calculate your projection."
             st.session_state.conversation.append({"role": "assistant", "content": assistant_reply})
             st.markdown(f"**GPT:** {assistant_reply}")
         else:
+            # If file is uploaded, show the projection form
             st.markdown("**To calculate your projection, please provide the following details:**")
             title = st.text_input("Enter your Title:")
             current_date = st.date_input("Current Date:", value=datetime.today())
@@ -171,7 +174,7 @@ if user_input:
             promised_hours = st.number_input("Hours entered per session:", min_value=0.0, value=7.5, step=0.5)
             
             if st.button("Calculate Projection"):
-                # Try to extract values from the cleaned Excel file; use placeholders if extraction fails.
+                # Attempt to read Weighted Date Diff and Hours Worked from the cleaned file
                 if "Weighted Date Diff" in df_cleaned.columns and "Hours Worked" in df_cleaned.columns:
                     try:
                         current_weighted_date_diff = pd.to_numeric(df_cleaned["Weighted Date Diff"], errors="coerce").sum()
@@ -184,10 +187,12 @@ if user_input:
                     current_weighted_date_diff = current_avg * 100
                     current_hours_worked = 100
 
+                # Perform the calculation
                 results = calculate_required_days(current_weighted_date_diff, current_hours_worked, promised_hours, entry_delay)
                 target_date = current_date + timedelta(days=results['Required Days'])
                 upcoming_reset = get_upcoming_reset_date(title, current_date)
                 
+                # Build the final GPT response
                 disclaimer = knowledge_base.get("disclaimers", {}).get("primary_disclaimer", "")
                 projection_message = (
                     f"{disclaimer}\n\nProjection Results:\n"
@@ -205,12 +210,12 @@ if user_input:
                         "Consider increasing your entry frequency or hours."
                     )
                 
+                # Display the GPT response
                 st.write("### Projection Results")
                 st.markdown(projection_message)
                 st.session_state.conversation.append({"role": "assistant", "content": projection_message})
-    
     else:
-        # For non-projection queries, answer using the knowledge base.
+        # Non-projection questions are answered from the knowledge base
         assistant_reply = find_best_answer(user_input, qna_pairs)
         st.session_state.conversation.append({"role": "assistant", "content": assistant_reply})
         st.markdown(f"**GPT:** {assistant_reply}")

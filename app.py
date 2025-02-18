@@ -12,8 +12,13 @@ from datetime import datetime, timedelta
 # ---------------------------
 if 'conversation' not in st.session_state:
     st.session_state.conversation = [
-        {"role": "system", 
-         "content": "You are an AI assistant that ONLY answers based on the provided knowledge base. If the answer is not in the knowledge base, reply with: 'I don't have information on that.'"}
+        {
+            "role": "system",
+            "content": (
+                "You are an AI assistant that ONLY answers based on the provided knowledge base. "
+                "If the answer is not in the knowledge base, reply with: 'I don't have information on that.'"
+            )
+        }
     ]
 
 # ---------------------------
@@ -67,12 +72,17 @@ def find_best_answer(query, qna_pairs, cutoff=0.5):
 # ---------------------------
 def calculate_required_days(current_weighted_date_diff, current_hours_worked, user_promised_hours, user_delay):
     current_average = current_weighted_date_diff / current_hours_worked if current_hours_worked else 0
-    required_days = max(0, (4.99 * current_hours_worked - current_weighted_date_diff) /
-                           (user_promised_hours * user_delay - 4.99 * user_promised_hours))
+    required_days = max(
+        0,
+        (4.99 * current_hours_worked - current_weighted_date_diff)
+        / (user_promised_hours * user_delay - 4.99 * user_promised_hours)
+    )
     required_days = round(required_days)
     projected_hours_worked = current_hours_worked + (user_promised_hours * required_days)
     projected_weighted_date_diff = current_weighted_date_diff + (user_promised_hours * user_delay * required_days)
-    projected_average = projected_weighted_date_diff / projected_hours_worked if projected_hours_worked else 0
+    projected_average = (
+        projected_weighted_date_diff / projected_hours_worked if projected_hours_worked else 0
+    )
     return {
         'Current Average': current_average,
         'Projected Average': projected_average,
@@ -89,6 +99,7 @@ def get_upcoming_reset_date(title, current_date):
         reset_month, reset_day = 11, 1
     else:
         reset_month, reset_day = 10, 1
+
     year = current_date.year
     candidate = datetime(year, reset_month, reset_day).date()
     if current_date <= candidate:
@@ -99,7 +110,7 @@ def get_upcoming_reset_date(title, current_date):
 # ---------------------------
 # App Title and Excel File Upload Section
 # ---------------------------
-st.title("Excel File Cleaner & GPT Assistant")
+st.title("Average Days to Enter Time - AI Assistant")
 
 uploaded_file = st.file_uploader("Upload an Excel file", type=["xlsx"])
 df_cleaned = None
@@ -115,12 +126,15 @@ if uploaded_file:
     df_cleaned = df_cleaned.dropna(axis=1, how='all')
     df_cleaned = df_cleaned.loc[:, ~df_cleaned.columns.astype(str).str.contains('Unnamed', na=False)]
     df_cleaned.dropna(how='all', inplace=True)
+    
+    # Remove last two rows based on "Weighted Date Diff"
     if "Weighted Date Diff" in df_cleaned.columns:
         try:
             last_valid_index = df_cleaned[df_cleaned["Weighted Date Diff"].notna()].index[-1]
             df_cleaned = df_cleaned.iloc[:last_valid_index - 1]
-        except Exception as e:
+        except Exception:
             pass
+    
     st.write("### Preview of Cleaned Data:", df_cleaned.head())
     
     # Provide a download button for the cleaned Excel file.
@@ -138,8 +152,7 @@ if uploaded_file:
 # ---------------------------
 # GPT Chat Interface Section
 # ---------------------------
-st.header("Chat with GPT (Based on Knowledge Base)")
-user_input = st.text_input("Ask GPT anything:")
+user_input = st.text_input("Ask me anything about Average Days to Enter Time:")
 
 # Define trigger phrases for projection calculations
 projection_triggers = [
@@ -152,20 +165,22 @@ projection_triggers = [
 ]
 
 if user_input:
-    # Add user message to the conversation
+    # Append user question to conversation
     st.session_state.conversation.append({"role": "user", "content": user_input})
     
-    # Check if the query triggers projection
+    # If user question is a projection-type question
     if any(trigger in user_input.lower() for trigger in projection_triggers):
-        # If no file is uploaded, only show a single GPT response prompting the user to upload a file.
+        # If no file is uploaded, prompt them to upload
         if df_cleaned is None:
-            st.warning("Please upload an Excel file to calculate your projection.")
-            # This is the only GPT response in this scenario
-            assistant_reply = "Please upload an Excel file to calculate your projection."
+            warning_msg = "Please upload an Excel file to calculate your projection."
+            st.warning(warning_msg)
+            
+            # Provide just one GPT answer (the warning)
+            assistant_reply = warning_msg
             st.session_state.conversation.append({"role": "assistant", "content": assistant_reply})
-            st.markdown(f"**GPT:** {assistant_reply}")
+        
         else:
-            # If file is uploaded, show the projection form
+            # Show projection input form
             st.markdown("**To calculate your projection, please provide the following details:**")
             title = st.text_input("Enter your Title:")
             current_date = st.date_input("Current Date:", value=datetime.today())
@@ -174,12 +189,12 @@ if user_input:
             promised_hours = st.number_input("Hours entered per session:", min_value=0.0, value=7.5, step=0.5)
             
             if st.button("Calculate Projection"):
-                # Attempt to read Weighted Date Diff and Hours Worked from the cleaned file
+                # Attempt to extract values from the DataFrame
                 if "Weighted Date Diff" in df_cleaned.columns and "Hours Worked" in df_cleaned.columns:
                     try:
                         current_weighted_date_diff = pd.to_numeric(df_cleaned["Weighted Date Diff"], errors="coerce").sum()
                         current_hours_worked = pd.to_numeric(df_cleaned["Hours Worked"], errors="coerce").sum()
-                    except Exception as e:
+                    except Exception:
                         st.error("Error computing values from Excel file. Using placeholder values.")
                         current_weighted_date_diff = current_avg * 100
                         current_hours_worked = 100
@@ -187,12 +202,17 @@ if user_input:
                     current_weighted_date_diff = current_avg * 100
                     current_hours_worked = 100
 
-                # Perform the calculation
-                results = calculate_required_days(current_weighted_date_diff, current_hours_worked, promised_hours, entry_delay)
+                # Calculate projection
+                results = calculate_required_days(
+                    current_weighted_date_diff,
+                    current_hours_worked,
+                    promised_hours,
+                    entry_delay
+                )
                 target_date = current_date + timedelta(days=results['Required Days'])
                 upcoming_reset = get_upcoming_reset_date(title, current_date)
                 
-                # Build the final GPT response
+                # Build response
                 disclaimer = knowledge_base.get("disclaimers", {}).get("primary_disclaimer", "")
                 projection_message = (
                     f"{disclaimer}\n\nProjection Results:\n"
@@ -202,46 +222,57 @@ if user_input:
                     f"- **Projected Date to Reach Average Below 5:** {target_date.strftime('%Y-%m-%d')}\n"
                 )
                 
+                # Check if target date is after reset
                 if target_date > upcoming_reset:
                     projection_message += (
                         f"\n**Note:** With your current working schedule, the projected date "
                         f"({target_date.strftime('%Y-%m-%d')}) falls after your title's reset date "
-                        f"({upcoming_reset.strftime('%Y-%m-%d')}). This means the projection may not be achievable as calculated. "
+                        f"({upcoming_reset.strftime('%Y-%m-%d')}). "
+                        "This means the projection may not be achievable as calculated. "
                         "Consider increasing your entry frequency or hours."
                     )
                 
-                # Display the GPT response
                 st.write("### Projection Results")
                 st.markdown(projection_message)
                 st.session_state.conversation.append({"role": "assistant", "content": projection_message})
+                
     else:
-        # Non-projection questions are answered from the knowledge base
+        # Normal Q&A from knowledge base
         assistant_reply = find_best_answer(user_input, qna_pairs)
         st.session_state.conversation.append({"role": "assistant", "content": assistant_reply})
-        st.markdown(f"**GPT:** {assistant_reply}")
 
 # ---------------------------
 # Display Only GPT's Latest Answer
 # ---------------------------
-if st.session_state.conversation:
-    # Find the latest GPT answer
-    for msg in reversed(st.session_state.conversation):
-        if msg["role"] == "assistant":
-            st.markdown(f"**GPT:** {msg['content']}")
-            break
+# Find the latest GPT answer (if any) and display it
+latest_gpt_answer = None
+for msg in reversed(st.session_state.conversation):
+    if msg["role"] == "assistant":
+        latest_gpt_answer = msg["content"]
+        break
+
+if latest_gpt_answer:
+    st.markdown(f"**GPT:** {latest_gpt_answer}")
 
 # ---------------------------
-# Conversation History Expander (Hidden by Default)
+# Conversation History (Collapsed by Default)
 # ---------------------------
 with st.expander("Show Full Conversation History", expanded=False):
     for msg in st.session_state.conversation:
-        st.markdown(f"**{msg['role'].capitalize()}**: {msg['content']}")
+        role_label = "GPT" if msg["role"] == "assistant" else "You"
+        st.markdown(f"**{role_label}:** {msg['content']}")
 
 # ---------------------------
 # Clear Conversation Button
 # ---------------------------
 if st.button("Clear Conversation"):
     st.session_state.conversation = [
-        {"role": "system", "content": "You are an AI assistant that uses a provided knowledge base to answer questions."}
+        {
+            "role": "system",
+            "content": (
+                "You are an AI assistant that ONLY answers based on the provided knowledge base. "
+                "If the answer is not in the knowledge base, reply with: 'I don't have information on that.'"
+            )
+        }
     ]
     st.experimental_rerun()

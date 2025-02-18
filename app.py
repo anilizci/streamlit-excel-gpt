@@ -210,24 +210,31 @@ if user_input:
                 st.session_state.conversation.append({"role": "assistant", "content": projection_message})
     
     else:
-        # For queries that are not projection triggers, use the knowledge base Q&A.
+        # For non-projection queries, answer using the knowledge base.
         assistant_reply = find_best_answer(user_input, qna_pairs)
         st.session_state.conversation.append({"role": "assistant", "content": assistant_reply})
         st.markdown(f"**GPT:** {assistant_reply}")
 
 # ---------------------------
-# Display Conversation History
+# Display Only GPT's Latest Answer
 # ---------------------------
-st.subheader("Conversation History")
-if len(st.session_state.conversation) > 1:
-    st.markdown(f"**You:** {st.session_state.conversation[-2]['content']}")
-    st.markdown(f"**GPT:** {st.session_state.conversation[-1]['content']}")
+if st.session_state.conversation:
+    # Find the latest GPT answer
+    for msg in reversed(st.session_state.conversation):
+        if msg["role"] == "assistant":
+            st.markdown(f"**GPT:** {msg['content']}")
+            break
 
-with st.expander("Show Full Conversation History"):
+# ---------------------------
+# Conversation History Expander (Hidden by Default)
+# ---------------------------
+with st.expander("Show Full Conversation History", expanded=False):
     for msg in st.session_state.conversation:
-        if msg['role'] in ["user", "assistant"]:
-            st.markdown(f"**{msg['role'].capitalize()}**: {msg['content']}")
+        st.markdown(f"**{msg['role'].capitalize()}**: {msg['content']}")
 
+# ---------------------------
+# Clear Conversation Button
+# ---------------------------
 if st.button("Clear Conversation"):
     st.session_state.conversation = [
         {"role": "system", "content": "You are an AI assistant that uses a provided knowledge base to answer questions."}

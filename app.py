@@ -174,8 +174,6 @@ if user_input:
         if df_cleaned is None:
             warning_msg = "Please upload an Excel file to calculate your projection."
             st.warning(warning_msg)
-            
-            # Provide just one GPT answer (the warning)
             assistant_reply = warning_msg
             st.session_state.conversation.append({"role": "assistant", "content": assistant_reply})
         
@@ -186,7 +184,6 @@ if user_input:
             current_date = st.date_input("Current Date:", value=datetime.today())
             current_avg = st.number_input("Current Average Days to Enter Time:", min_value=0.0, value=16.0, step=0.1)
             
-            # CHANGED THIS PART:
             entry_delay = st.number_input(
                 "When are you going to enter the time? Enter 0 for the same day, for the next day please enter 1. (entry delay)", 
                 min_value=0.0, 
@@ -224,17 +221,17 @@ if user_input:
                 target_date_str = target_date.strftime('%m/%d/%Y')
                 upcoming_reset_str = upcoming_reset.strftime('%m/%d/%Y')
 
-                # Build response
+                # Build single final GPT response
                 disclaimer = knowledge_base.get("disclaimers", {}).get("primary_disclaimer", "")
                 projection_message = (
-                    f"{disclaimer}\n\nProjection Results:\n"
+                    f"{disclaimer}\n\n"
+                    f"Projection Results:\n"
                     f"- **Current Average:** {results['Current Average']:.2f} days\n"
                     f"- **Projected Average:** {results['Projected Average']:.2f} days\n"
                     f"- **Required Additional Days:** {results['Required Days']}\n"
                     f"- **Projected Date to Reach Average Below 5:** {target_date_str}\n"
                 )
                 
-                # Check if target date is after reset
                 if target_date > upcoming_reset:
                     projection_message += (
                         f"\n**Note:** With your current working schedule, the projected date "
@@ -244,8 +241,7 @@ if user_input:
                         "Consider increasing your entry frequency or hours."
                     )
                 
-                st.write("### Projection Results")
-                st.markdown(projection_message)
+                # Store the final GPT answer in conversation, but don't display it twice
                 st.session_state.conversation.append({"role": "assistant", "content": projection_message})
                 
     else:
@@ -256,7 +252,6 @@ if user_input:
 # ---------------------------
 # Display Only GPT's Latest Answer
 # ---------------------------
-# Find the latest GPT answer (if any) and display it
 latest_gpt_answer = None
 for msg in reversed(st.session_state.conversation):
     if msg["role"] == "assistant":

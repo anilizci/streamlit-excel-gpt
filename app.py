@@ -12,22 +12,16 @@ from datetime import datetime, timedelta
 # ---------------------------
 if 'conversation' not in st.session_state:
     st.session_state.conversation = [
-        {
-            "role": "system",
-            "content": (
-                "You are an AI assistant that ONLY answers based on the provided knowledge base. "
-                "If the answer is not in the knowledge base, reply with: 'I don't have information on that.'"
-            )
-        }
+        {"role": "system", "content": "You are an AI assistant that ONLY answers based on the provided knowledge base. If the answer is not in the knowledge base, reply with: 'I don't have information on that.'"}
     ]
 
 # ---------------------------
-# Secure API Key
+# Securely Get API Key
 # ---------------------------
 openai.api_key = st.secrets["OPENAI_API_KEY"]
 
 # ---------------------------
-# Load Knowledge Base
+# Load Knowledge Base from JSON
 # ---------------------------
 def load_knowledge_base():
     try:
@@ -39,7 +33,9 @@ def load_knowledge_base():
 
 knowledge_base = load_knowledge_base()
 
-# Extract Q&A pairs from the knowledge base
+# ---------------------------
+# Extract Q&A Pairs from Knowledge Base
+# ---------------------------
 def extract_qna(data):
     qna_list = []
     def traverse_json(obj):
@@ -85,8 +81,7 @@ def calculate_required_days(current_weighted_date_diff, current_hours_worked, us
 def get_upcoming_reset_date(title, current_date):
     """
     Determines the upcoming reset date based on the title.
-    - If title contains "associate" or "staff", reset is November 1.
-    - Otherwise (e.g., for Counsel or Partner), default reset is October 1.
+    For associates/staff, resets on November 1; for counsel/partners, resets on October 1.
     """
     title_lower = title.lower()
     if "associate" in title_lower or "staff" in title_lower:
@@ -101,37 +96,33 @@ def get_upcoming_reset_date(title, current_date):
         return datetime(year + 1, reset_month, reset_day).date()
 
 # ---------------------------
-# App Title and Excel Upload Section
+# App Title and Excel File Upload Section
 # ---------------------------
 st.title("Excel File Cleaner & GPT Assistant")
 
 uploaded_file = st.file_uploader("Upload an Excel file", type=["xlsx"])
-df_cleaned = None  # For cleaned DataFrame
+df_cleaned = None
 
 if uploaded_file:
     df = pd.read_excel(uploaded_file, engine='openpyxl')
     st.write("### Preview of Uploaded Data:", df.head())
-
-    # Clean the DataFrame: drop first two rows (metadata)
+    
+    # Clean the data: drop metadata rows, set headers, and remove empty columns/rows.
     df_cleaned = df.iloc[2:].reset_index(drop=True)
-    # Set the first valid row as headers
     df_cleaned.columns = df_cleaned.iloc[0]
     df_cleaned = df_cleaned[1:].reset_index(drop=True)
-    # Drop completely empty columns and rows
     df_cleaned = df_cleaned.dropna(axis=1, how='all')
     df_cleaned = df_cleaned.loc[:, ~df_cleaned.columns.astype(str).str.contains('Unnamed', na=False)]
     df_cleaned.dropna(how='all', inplace=True)
-    # Remove last two rows based on "Weighted Date Diff" if available
     if "Weighted Date Diff" in df_cleaned.columns:
         try:
             last_valid_index = df_cleaned[df_cleaned["Weighted Date Diff"].notna()].index[-1]
             df_cleaned = df_cleaned.iloc[:last_valid_index - 1]
         except Exception as e:
             pass
-
     st.write("### Preview of Cleaned Data:", df_cleaned.head())
-
-    # Provide a download option for the cleaned Excel file
+    
+    # Provide a download button for the cleaned Excel file.
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         df_cleaned.to_excel(writer, index=False, sheet_name="Cleaned Data")
@@ -147,7 +138,6 @@ if uploaded_file:
 # GPT Chat Interface Section
 # ---------------------------
 st.header("Chat with GPT (Based on Knowledge Base)")
-
 user_input = st.text_input("Ask GPT anything:")
 
 # Define trigger phrases for projection calculations
@@ -163,7 +153,7 @@ projection_triggers = [
 if user_input:
     st.session_state.conversation.append({"role": "user", "content": user_input})
     
-    # If a file has been uploaded and the user query indicates a projection request...
+    # If a file is uploaded and the query indicates a projection request, show the projection form.
     if df_cleaned is not None and any(trigger in user_input.lower() for trigger in projection_triggers):
         st.markdown("**To calculate your projection, please provide the following details:**")
         title = st.text_input("Enter your Title:")
@@ -173,7 +163,7 @@ if user_input:
         promised_hours = st.number_input("Hours entered per session:", min_value=0.0, value=7.5, step=0.5)
         
         if st.button("Calculate Projection"):
-            # Attempt to extract values from the Excel file; use placeholders if extraction fails.
+            # Try to extract values from the cleaned Excel file; use placeholder values if extraction fails.
             if "Weighted Date Diff" in df_cleaned.columns and "Hours Worked" in df_cleaned.columns:
                 try:
                     current_weighted_date_diff = pd.to_numeric(df_cleaned["Weighted Date Diff"], errors="coerce").sum()
@@ -188,23 +178,20 @@ if user_input:
 
             results = calculate_required_days(current_weighted_date_diff, current_hours_worked, promised_hours, entry_delay)
             target_date = current_date + timedelta(days=results['Required Days'])
-            # Get the upcoming reset date based on title and current date
             upcoming_reset = get_upcoming_reset_date(title, current_date)
             
-            # Build the projection response message with disclaimer
             disclaimer = knowledge_base.get("disclaimers", {}).get("primary_disclaimer", "")
-            projection_message = f"{disclaimer}\n\nProjection Results:\n- **Current Average:** {results['Current Average']:.2f} days\n- **Projected Average:** {results['Projected Average']:.2f} days\n- **Required Additional Days of Consistent Entry:** {results['Required Days']}\n- **Projected Date to Reach Average Below 5:** {target_date.strftime('%Y-%m-%d')}\n"
+            projection_message = f"{disclaimer}\n\nProjection Results:\n- **Current Average:** {results['Current Average']:.2f} days\n- **Projected Average:** {results['Projected Average']:.2f} days\n- **Required Additional Days:** {results['Required Days']}\n- **Projected Date to Reach Average Below 5:** {target_date.strftime('%Y-%m-%d')}\n"
             
-            # If the projection target date falls after the upcoming reset date, add advisory message.
             if target_date > upcoming_reset:
-                projection_message += f"\n**Note:** With your current working schedule, the projected date ({target_date.strftime('%Y-%m-%d')}) falls after your title's reset date ({upcoming_reset.strftime('%Y-%m-%d')}). This means the projection may not be achievable as calculated. Please consider increasing your entry frequency or hours to achieve a drop below 5 before the reset date."
+                projection_message += f"\n**Note:** With your current working schedule, the projected date ({target_date.strftime('%Y-%m-%d')}) falls after your title's reset date ({upcoming_reset.strftime('%Y-%m-%d')}). This means the projection may not be achievable as calculated. Consider increasing your entry frequency or hours."
             
             st.write("### Projection Results")
             st.markdown(projection_message)
             st.session_state.conversation.append({"role": "assistant", "content": projection_message})
     
     else:
-        # If no file is uploaded or the query is not a projection trigger, use the knowledge base Q&A
+        # For queries not triggering a projection, use the knowledge base Q&A.
         assistant_reply = find_best_answer(user_input, qna_pairs)
         st.session_state.conversation.append({"role": "assistant", "content": assistant_reply})
         st.markdown(f"**GPT:** {assistant_reply}")
@@ -222,14 +209,8 @@ with st.expander("Show Full Conversation History"):
         if msg['role'] in ["user", "assistant"]:
             st.markdown(f"**{msg['role'].capitalize()}**: {msg['content']}")
 
-# ---------------------------
-# Clear Conversation Button
-# ---------------------------
 if st.button("Clear Conversation"):
     st.session_state.conversation = [
-        {
-            "role": "system",
-            "content": "You are an AI assistant that uses a provided knowledge base to answer questions."
-        }
+        {"role": "system", "content": "You are an AI assistant that uses a provided knowledge base to answer questions."}
     ]
     st.experimental_rerun()

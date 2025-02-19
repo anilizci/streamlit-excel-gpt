@@ -193,7 +193,7 @@ if user_input:
     if any(trigger in user_input.lower() for trigger in projection_triggers):
         if 'df_cleaned' not in st.session_state or st.session_state.df_cleaned is None:
             # No file cleaned yet
-            warning_msg = "Please upload an Excel file below to calculate your projection."
+            warning_msg = "Please upload an Excel file in section (2) to calculate your projection."
             st.warning(warning_msg)
             assistant_reply = warning_msg
             st.session_state.conversation.append({"role": "assistant", "content": assistant_reply})
@@ -214,10 +214,11 @@ if user_input:
             promised_hours = st.number_input("Hours entered per session:", min_value=0.0, value=7.5, step=0.5)
 
             if st.button("Calculate Projection"):
-                if "Weighted Date Diff" in st.session_state.df_cleaned.columns and "Hours Worked" in st.session_state.df_cleaned.columns:
+                df_cleaned = st.session_state.df_cleaned
+                if "Weighted Date Diff" in df_cleaned.columns and "Hours Worked" in df_cleaned.columns:
                     try:
-                        current_weighted_date_diff = pd.to_numeric(st.session_state.df_cleaned["Weighted Date Diff"], errors="coerce").sum()
-                        current_hours_worked = pd.to_numeric(st.session_state.df_cleaned["Hours Worked"], errors="coerce").sum()
+                        current_weighted_date_diff = pd.to_numeric(df_cleaned["Weighted Date Diff"], errors="coerce").sum()
+                        current_hours_worked = pd.to_numeric(df_cleaned["Hours Worked"], errors="coerce").sum()
                     except Exception:
                         st.error("Error computing values from Excel file. Using placeholder values.")
                         current_weighted_date_diff = current_avg * 100
@@ -264,7 +265,7 @@ if user_input:
     else:
         # Normal Q&A from knowledge base
         assistant_reply = find_best_answer(user_input, qna_pairs)
-        st.session_state.conversation.append({"role": "assistant", "content": assistant_reply})
+        st.session_state.conversation.append({"role": "assistant", "content":assistant_reply})
 
 # Display Only GPT's Latest Answer
 latest_gpt_answer = None
@@ -285,10 +286,10 @@ with st.expander("Show Full Conversation History", expanded=False):
         st.markdown(f"**{role_label}:** {msg['content']}")
 
 # ---------------------------
-# 2) File Upload & Cleaning Section
+# 2) Projections - Average Days Calculator (File Upload)
 # ---------------------------
 st.markdown("---")
-st.markdown("## 2) Upload and Clean Your Excel File")
+st.markdown("## 2) Projections - Average Days Calculator")
 
 uploaded_file = st.file_uploader("Upload an Excel file (XLSX format):", type=["xlsx"])
 df_cleaned = None

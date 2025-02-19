@@ -279,29 +279,3 @@ for msg in reversed(st.session_state.conversation):
     if msg["role"] == "assistant":
         latest_gpt_answer = msg["content"]
         break
-
-if latest_gpt_answer:
-    st.markdown(f"**GPT:** {latest_gpt_answer}")
-
-# ---------------------------
-# Conversation History (Collapsed by Default)
-# ---------------------------
-with st.expander("Show Full Conversation History", expanded=False):
-    for msg in st.session_state.conversation:
-        role_label = "GPT" if msg["role"] == "assistant" else "You"
-        st.markdown(f"**{role_label}:** {msg['content']}")
-
-# ---------------------------
-# Clear Conversation Button
-# ---------------------------
-if st.button("Clear Conversation"):
-    st.session_state.conversation = [
-        {
-            "role": "system",
-            "content": (
-                "You are an AI assistant that ONLY answers based on the provided knowledge base. "
-                "If the answer is not in the knowledge base, reply with: 'I don't have information on that.'"
-            )
-        }
-    ]
-    st.experimental_rerun()

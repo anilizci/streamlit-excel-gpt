@@ -58,6 +58,15 @@ st.markdown(
         font-weight: 600;
         color: #0A5A9C;
     }
+
+    /* Add a little spacing for the floating 'Supported Formats' label */
+    .right-float {
+        float: right;
+        font-size: 1rem;
+        color: #0A5A9C;
+        margin-left: 10px;
+        font-weight: 600;
+    }
     </style>
     """,
     unsafe_allow_html=True
@@ -76,6 +85,9 @@ if 'conversation' not in st.session_state:
             )
         }
     ]
+
+if 'df_cleaned' not in st.session_state:
+    st.session_state.df_cleaned = None
 
 # ---------------------------
 # Securely Get API Key
@@ -186,19 +198,15 @@ projection_triggers = [
 ]
 
 if user_input:
-    # Append user question to conversation
     st.session_state.conversation.append({"role": "user", "content": user_input})
 
-    # If user question is a projection-type question
     if any(trigger in user_input.lower() for trigger in projection_triggers):
-        if 'df_cleaned' not in st.session_state or st.session_state.df_cleaned is None:
-            # No file cleaned yet
+        if st.session_state.df_cleaned is None:
             warning_msg = "Please upload an Excel file in section (2) to calculate your projection."
             st.warning(warning_msg)
             assistant_reply = warning_msg
             st.session_state.conversation.append({"role": "assistant", "content": assistant_reply})
         else:
-            # Show projection input form
             st.markdown("**To calculate your projection, please provide the following details:**")
             title = st.text_input("Enter your Title:")
             current_date = st.date_input("Current Date:", value=datetime.today())
@@ -227,7 +235,6 @@ if user_input:
                     current_weighted_date_diff = current_avg * 100
                     current_hours_worked = 100
 
-                # Calculate projection
                 results = calculate_required_days(
                     current_weighted_date_diff,
                     current_hours_worked,
@@ -237,11 +244,9 @@ if user_input:
                 target_date = current_date + timedelta(days=results['Required Days'])
                 upcoming_reset = get_upcoming_reset_date(title, current_date)
 
-                # Format the dates as MM/DD/YYYY
                 target_date_str = target_date.strftime('%m/%d/%Y')
                 upcoming_reset_str = upcoming_reset.strftime('%m/%d/%Y')
 
-                # Build single final GPT response
                 disclaimer = knowledge_base.get("disclaimers", {}).get("primary_disclaimer", "")
                 projection_message = (
                     f"{disclaimer}\n\n"
@@ -265,7 +270,7 @@ if user_input:
     else:
         # Normal Q&A from knowledge base
         assistant_reply = find_best_answer(user_input, qna_pairs)
-        st.session_state.conversation.append({"role": "assistant", "content":assistant_reply})
+        st.session_state.conversation.append({"role": "assistant", "content": assistant_reply})
 
 # Display Only GPT's Latest Answer
 latest_gpt_answer = None
@@ -286,10 +291,18 @@ with st.expander("Show Full Conversation History", expanded=False):
         st.markdown(f"**{role_label}:** {msg['content']}")
 
 # ---------------------------
-# 2) Projections - Average Days Calculator (File Upload)
+# 2) Projections - Average Days Calculator
 # ---------------------------
-st.markdown("---")
-st.markdown("## 2) Projections - Average Days Calculator")
+# Adding a heading with a floating label for "📁 Supported Formats: XLSX only"
+st.markdown(
+    """
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h2>2) Projections - Average Days Calculator</h2>
+        <span class="right-float">📁 Supported Formats: XLSX only</span>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
 uploaded_file = st.file_uploader("Upload an Excel file (XLSX format):", type=["xlsx"])
 df_cleaned = None

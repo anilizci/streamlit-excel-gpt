@@ -3,9 +3,16 @@ import pandas as pd
 import io
 import os
 import json
-import difflib
 import openai
 from datetime import datetime, timedelta
+
+# 1) We import the embedding-based helper functions from chunked_embeddings.py
+from chunked_embeddings import (
+    split_text,
+    create_embeddings_for_chunks,
+    find_most_similar_chunk,
+    ask_gpt
+)
 
 # ------------------------------------------
 # Set page config to wide layout
@@ -81,60 +88,56 @@ def load_knowledge_base():
 knowledge_base = load_knowledge_base()
 
 # ------------------------------------------
-# Extract Q&A Pairs from Knowledge Base
+# Convert the entire knowledge_base into one big text
+# (We gather all 'answer' or 'content' fields and combine them)
 # ------------------------------------------
-def extract_qna(data):
-    qna_list = []
-    def traverse_json(obj):
+def convert_json_to_text(data):
+    text_fragments = []
+
+    def traverse(obj):
         if isinstance(obj, dict):
-            if "question" in obj and "answer" in obj:
-                qna_list.append((obj["question"].lower(), obj["answer"]))
-            for value in obj.values():
-                traverse_json(value)
+            for k, v in obj.items():
+                if k.lower() in ["answer", "content"]:
+                    if isinstance(v, str):
+                        text_fragments.append(v)
+                else:
+                    traverse(v)
         elif isinstance(obj, list):
             for item in obj:
-                traverse_json(item)
-    traverse_json(data)
-    return qna_list
+                traverse(item)
 
-qna_pairs = extract_qna(knowledge_base)
+    traverse(data)
+    return "\n".join(text_fragments)
 
-# ------------------------------------------
-# NEW: Helper function to have GPT rephrase/expand the snippet
-# ------------------------------------------
-def call_gpt_with_knowledge_base(user_query, knowledge_snippet):
-    system_prompt = (
-        "You are an AI assistant that ONLY uses the provided knowledge base snippet. "
-        "If the snippet doesn't contain relevant info, respond with 'I don't have information on that.' "
-        "Be concise, clear, and well-structured."
-    )
-    user_prompt = (
-        f"User asked: '{user_query}'\n\n"
-        f"Knowledge snippet:\n{knowledge_snippet}\n\n"
-        "Please answer using only the snippet above."
-    )
-    response = openai.ChatCompletion.create(
-        model="gpt-4",
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ],
-        temperature=0
-    )
-    return response.choices[0].message["content"]
+# Create one big text from the knowledge_base
+big_knowledge_text = convert_json_to_text(knowledge_base)
 
 # ------------------------------------------
-# UPDATED: Use GPT to rephrase the matched answer
+# Our new chunk-based "find_best_answer" function
 # ------------------------------------------
-def find_best_answer(query, qna_pairs, cutoff=0.2):
-    questions = [q[0] for q in qna_pairs]
-    best_match = difflib.get_close_matches(query.lower(), questions, n=1, cutoff=cutoff)
-    if best_match:
-        for q, a in qna_pairs:
-            if q == best_match[0]:
-                # Instead of returning 'a' directly, call GPT for a refined answer
-                return call_gpt_with_knowledge_base(query, a)
-    return "I don't have information on that."
+def find_best_answer_chunked(user_query, knowledge_text):
+    """
+    1) Split the knowledge_text into chunks
+    2) Create embeddings for each chunk
+    3) Find the chunk that best matches user_query
+    4) Ask GPT to answer using that chunk
+    """
+    # If there's no text at all, fallback
+    if not knowledge_text.strip():
+        return "I don't have information on that."
+
+    # Step A: Split text into ~200-word chunks (50 overlap)
+    chunks = split_text(knowledge_text, chunk_size=200, overlap=50)
+
+    # Step B: Embed each chunk
+    embeddings = create_embeddings_for_chunks(chunks)
+
+    # Step C: Find the best chunk
+    best_chunk = find_most_similar_chunk(user_query, embeddings)
+
+    # Step D: Ask GPT using that chunk
+    answer = ask_gpt(user_query, best_chunk)
+    return answer
 
 # ------------------------------------------
 # Projection Calculation Logic
@@ -226,6 +229,7 @@ with col2:
 
     # Only proceed if user typed something
     if user_input:
+        # Record the user query in conversation
         st.session_state.conversation.append({"role": "user", "content": user_input})
         
         # If the user's query is projection-related, show the Excel uploader and projection form.
@@ -339,8 +343,10 @@ with col2:
                     # Append final answer
                     st.session_state.conversation.append({"role": "assistant", "content": projection_message})
         else:
-            # Normal Q&A from the knowledge base for non-projection queries
-            assistant_reply = find_best_answer(user_input, qna_pairs)
+            # Normal Q&A from the knowledge base (embedding-based)
+            # We convert the entire knowledge base JSON to a big text,
+            # then do chunk-based search
+            assistant_reply = find_best_answer_chunked(user_input, big_knowledge_text)
             st.session_state.conversation.append({"role": "assistant", "content": assistant_reply})
 
         # ---------------------------

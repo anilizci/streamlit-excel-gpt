@@ -100,6 +100,7 @@ def find_best_answer(query, qna_pairs, cutoff=0.5):
 # ---------------------------
 def calculate_required_days(current_weighted_date_diff, current_hours_worked, user_promised_hours, user_delay):
     current_average = current_weighted_date_diff / current_hours_worked if current_hours_worked else 0
+    # This formula tries to get below 5 days:
     required_days = max(
         0,
         (4.99 * current_hours_worked - current_weighted_date_diff)
@@ -218,6 +219,9 @@ if user_input:
             promised_hours = st.number_input("Hours entered per session:", min_value=0.0, value=7.5, step=0.5)
             
             if st.button("Calculate Projection"):
+                # A debug message to confirm the button is clicked and code runs
+                st.write("**Debug:** 'Calculate Projection' button was clicked. Computing results...")
+
                 # Attempt to extract values from the DataFrame or use placeholders
                 if df_cleaned is not None and "Weighted Date Diff" in df_cleaned.columns and "Hours Worked" in df_cleaned.columns:
                     try:
@@ -279,3 +283,33 @@ for msg in reversed(st.session_state.conversation):
     if msg["role"] == "assistant":
         latest_gpt_answer = msg["content"]
         break
+
+if latest_gpt_answer:
+    st.markdown(f"**GPT:** {latest_gpt_answer}")
+
+# ---------------------------
+# Conversation History (Collapsed by Default)
+# ---------------------------
+with st.expander("Show Full Conversation History", expanded=False):
+    for msg in st.session_state.conversation:
+        # Skip system messages so they don't show up to the user
+        if msg["role"] == "system":
+            continue
+        
+        role_label = "GPT" if msg["role"] == "assistant" else "You"
+        st.markdown(f"**{role_label}:** {msg['content']}")
+
+# ---------------------------
+# Clear Conversation Button
+# ---------------------------
+if st.button("Clear Conversation"):
+    st.session_state.conversation = [
+        {
+            "role": "system",
+            "content": (
+                "You are an AI assistant that ONLY answers based on the provided knowledge base. "
+                "If the answer is not in the knowledge base, reply with: 'I don't have information on that.'"
+            )
+        }
+    ]
+    st.experimental_rerun()

@@ -169,58 +169,9 @@ def get_upcoming_reset_date(title, current_date):
 st.title("Average Days to Enter Time - AI Assistant")
 
 # ---------------------------
-# 1) File Upload & Cleaning Section
+# 1) AI Chat Assistant Section
 # ---------------------------
-st.markdown("## 1) Upload and Clean Your Excel File")
-
-uploaded_file = st.file_uploader("Upload an Excel file (XLSX format):", type=["xlsx"])
-df_cleaned = None
-
-if uploaded_file:
-    df = pd.read_excel(uploaded_file, engine='openpyxl')
-    st.write("### Preview of Uploaded Data:")
-    st.dataframe(df.head(10))
-
-    # Clean the data: drop metadata rows, set headers, remove empty columns/rows.
-    df_cleaned = df.iloc[2:].reset_index(drop=True)
-    df_cleaned.columns = df_cleaned.iloc[0]
-    df_cleaned = df_cleaned[1:].reset_index(drop=True)
-    df_cleaned = df_cleaned.dropna(axis=1, how='all')
-    df_cleaned = df_cleaned.loc[:, ~df_cleaned.columns.astype(str).str.contains('Unnamed', na=False)]
-    df_cleaned.dropna(how='all', inplace=True)
-    
-    # Remove last two rows based on "Weighted Date Diff"
-    if "Weighted Date Diff" in df_cleaned.columns:
-        try:
-            last_valid_index = df_cleaned[df_cleaned["Weighted Date Diff"].notna()].index[-1]
-            df_cleaned = df_cleaned.iloc[:last_valid_index - 1]
-        except Exception:
-            pass
-    
-    st.write("### Preview of Cleaned Data:")
-    st.dataframe(df_cleaned.head(10))
-
-    # Provide a download button for the cleaned Excel file
-    output = io.BytesIO()
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df_cleaned.to_excel(writer, index=False, sheet_name="Cleaned Data")
-    output.seek(0)
-    st.download_button(
-        label="Download Cleaned Excel",
-        data=output,
-        file_name="cleaned_data.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
-
-# Store the cleaned DataFrame in session state if it exists
-if df_cleaned is not None:
-    st.session_state.df_cleaned = df_cleaned
-
-# ---------------------------
-# 2) AI Chat Assistant Section
-# ---------------------------
-st.markdown("---")
-st.markdown("## 2) Chat with the AI Assistant")
+st.markdown("## 1) Average Days to Enter Time - AI Assistant")
 
 user_input = st.text_input("Ask me anything about Average Days to Enter Time:")
 
@@ -242,7 +193,7 @@ if user_input:
     if any(trigger in user_input.lower() for trigger in projection_triggers):
         if 'df_cleaned' not in st.session_state or st.session_state.df_cleaned is None:
             # No file cleaned yet
-            warning_msg = "Please upload an Excel file above to calculate your projection."
+            warning_msg = "Please upload an Excel file below to calculate your projection."
             st.warning(warning_msg)
             assistant_reply = warning_msg
             st.session_state.conversation.append({"role": "assistant", "content": assistant_reply})
@@ -263,11 +214,10 @@ if user_input:
             promised_hours = st.number_input("Hours entered per session:", min_value=0.0, value=7.5, step=0.5)
 
             if st.button("Calculate Projection"):
-                df_cleaned = st.session_state.df_cleaned
-                if "Weighted Date Diff" in df_cleaned.columns and "Hours Worked" in df_cleaned.columns:
+                if "Weighted Date Diff" in st.session_state.df_cleaned.columns and "Hours Worked" in st.session_state.df_cleaned.columns:
                     try:
-                        current_weighted_date_diff = pd.to_numeric(df_cleaned["Weighted Date Diff"], errors="coerce").sum()
-                        current_hours_worked = pd.to_numeric(df_cleaned["Hours Worked"], errors="coerce").sum()
+                        current_weighted_date_diff = pd.to_numeric(st.session_state.df_cleaned["Weighted Date Diff"], errors="coerce").sum()
+                        current_hours_worked = pd.to_numeric(st.session_state.df_cleaned["Hours Worked"], errors="coerce").sum()
                     except Exception:
                         st.error("Error computing values from Excel file. Using placeholder values.")
                         current_weighted_date_diff = current_avg * 100
@@ -311,7 +261,6 @@ if user_input:
                     )
 
                 st.session_state.conversation.append({"role": "assistant", "content": projection_message})
-
     else:
         # Normal Q&A from knowledge base
         assistant_reply = find_best_answer(user_input, qna_pairs)
@@ -334,6 +283,55 @@ with st.expander("Show Full Conversation History", expanded=False):
     for msg in st.session_state.conversation:
         role_label = "GPT" if msg["role"] == "assistant" else "You"
         st.markdown(f"**{role_label}:** {msg['content']}")
+
+# ---------------------------
+# 2) File Upload & Cleaning Section
+# ---------------------------
+st.markdown("---")
+st.markdown("## 2) Upload and Clean Your Excel File")
+
+uploaded_file = st.file_uploader("Upload an Excel file (XLSX format):", type=["xlsx"])
+df_cleaned = None
+
+if uploaded_file:
+    df = pd.read_excel(uploaded_file, engine='openpyxl')
+    st.write("### Preview of Uploaded Data:")
+    st.dataframe(df.head(10))
+
+    # Clean the data: drop metadata rows, set headers, remove empty columns/rows.
+    df_cleaned = df.iloc[2:].reset_index(drop=True)
+    df_cleaned.columns = df_cleaned.iloc[0]
+    df_cleaned = df_cleaned[1:].reset_index(drop=True)
+    df_cleaned = df_cleaned.dropna(axis=1, how='all')
+    df_cleaned = df_cleaned.loc[:, ~df_cleaned.columns.astype(str).str.contains('Unnamed', na=False)]
+    df_cleaned.dropna(how='all', inplace=True)
+    
+    # Remove last two rows based on "Weighted Date Diff"
+    if "Weighted Date Diff" in df_cleaned.columns:
+        try:
+            last_valid_index = df_cleaned[df_cleaned["Weighted Date Diff"].notna()].index[-1]
+            df_cleaned = df_cleaned.iloc[:last_valid_index - 1]
+        except Exception:
+            pass
+    
+    st.write("### Preview of Cleaned Data:")
+    st.dataframe(df_cleaned.head(10))
+
+    # Provide a download button for the cleaned Excel file
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df_cleaned.to_excel(writer, index=False, sheet_name="Cleaned Data")
+    output.seek(0)
+    st.download_button(
+        label="Download Cleaned Excel",
+        data=output,
+        file_name="cleaned_data.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+
+# Store the cleaned DataFrame in session state if it exists
+if df_cleaned is not None:
+    st.session_state.df_cleaned = df_cleaned
 
 # ---------------------------
 # Clear Conversation Button

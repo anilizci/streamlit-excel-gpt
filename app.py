@@ -58,15 +58,6 @@ st.markdown(
         font-weight: 600;
         color: #0A5A9C;
     }
-
-    /* Add a little spacing for the floating 'Supported Formats' label */
-    .right-float {
-        float: right;
-        font-size: 1rem;
-        color: #0A5A9C;
-        margin-left: 10px;
-        font-weight: 600;
-    }
     </style>
     """,
     unsafe_allow_html=True
@@ -88,6 +79,10 @@ if 'conversation' not in st.session_state:
 
 if 'df_cleaned' not in st.session_state:
     st.session_state.df_cleaned = None
+
+# This boolean remembers if the user asked a projection question
+if 'projection_triggered' not in st.session_state:
+    st.session_state.projection_triggered = False
 
 # ---------------------------
 # Securely Get API Key
@@ -200,13 +195,18 @@ projection_triggers = [
 if user_input:
     st.session_state.conversation.append({"role": "user", "content": user_input})
 
+    # Check if the question is a projection-type question
     if any(trigger in user_input.lower() for trigger in projection_triggers):
+        # Mark that the user wants a projection
+        st.session_state.projection_triggered = True
+
+        # If the user hasn't uploaded/cleaned a file yet, show a warning
         if st.session_state.df_cleaned is None:
             warning_msg = "Please upload an Excel file in section (2) to calculate your projection."
             st.warning(warning_msg)
-            assistant_reply = warning_msg
-            st.session_state.conversation.append({"role": "assistant", "content": assistant_reply})
+            st.session_state.conversation.append({"role": "assistant", "content": warning_msg})
         else:
+            # If a file is already uploaded, we can show the projection form
             st.markdown("**To calculate your projection, please provide the following details:**")
             title = st.text_input("Enter your Title:")
             current_date = st.date_input("Current Date:", value=datetime.today())
@@ -235,6 +235,7 @@ if user_input:
                     current_weighted_date_diff = current_avg * 100
                     current_hours_worked = 100
 
+                # Perform the calculation
                 results = calculate_required_days(
                     current_weighted_date_diff,
                     current_hours_worked,
@@ -272,6 +273,72 @@ if user_input:
         assistant_reply = find_best_answer(user_input, qna_pairs)
         st.session_state.conversation.append({"role": "assistant", "content": assistant_reply})
 
+# If no new user_input, but user previously asked for a projection AND now we have a file,
+# we can auto-show the projection form again (for a multi-step scenario).
+if st.session_state.projection_triggered and st.session_state.df_cleaned is not None:
+    st.markdown("**To calculate your projection, please provide the following details:**")
+    title = st.text_input("Enter your Title:")
+    current_date = st.date_input("Current Date:", value=datetime.today())
+    current_avg = st.number_input("Current Average Days to Enter Time:", min_value=0.0, value=16.0, step=0.1)
+    
+    entry_delay = st.number_input(
+        "When are you going to enter the time? Enter 0 for the same day, for the next day please enter 1. (entry delay)", 
+        min_value=0.0, 
+        value=1.0, 
+        step=0.1
+    )
+    
+    promised_hours = st.number_input("Hours entered per session:", min_value=0.0, value=7.5, step=0.5)
+
+    if st.button("Calculate Projection", key="auto_show_button"):
+        df_cleaned = st.session_state.df_cleaned
+        if "Weighted Date Diff" in df_cleaned.columns and "Hours Worked" in df_cleaned.columns:
+            try:
+                current_weighted_date_diff = pd.to_numeric(df_cleaned["Weighted Date Diff"], errors="coerce").sum()
+                current_hours_worked = pd.to_numeric(df_cleaned["Hours Worked"], errors="coerce").sum()
+            except Exception:
+                st.error("Error computing values from Excel file. Using placeholder values.")
+                current_weighted_date_diff = current_avg * 100
+                current_hours_worked = 100
+        else:
+            current_weighted_date_diff = current_avg * 100
+            current_hours_worked = 100
+
+        # Perform the calculation
+        results = calculate_required_days(
+            current_weighted_date_diff,
+            current_hours_worked,
+            promised_hours,
+            entry_delay
+        )
+        target_date = current_date + timedelta(days=results['Required Days'])
+        upcoming_reset = get_upcoming_reset_date(title, current_date)
+
+        target_date_str = target_date.strftime('%m/%d/%Y')
+        upcoming_reset_str = upcoming_reset.strftime('%m/%d/%Y')
+
+        disclaimer = knowledge_base.get("disclaimers", {}).get("primary_disclaimer", "")
+        projection_message = (
+            f"{disclaimer}\n\n"
+            f"Projection Results:\n"
+            f"- **Current Average:** {results['Current Average']:.2f} days\n"
+            f"- **Projected Average:** {results['Projected Average']:.2f} days\n"
+            f"- **Required Additional Days:** {results['Required Days']}\n"
+            f"- **Projected Date to Reach Average Below 5:** {target_date_str}\n"
+        )
+
+        if target_date > upcoming_reset:
+            projection_message += (
+                f"\n**Note:** With your current working schedule, the projected date "
+                f"({target_date_str}) falls after your title's reset date "
+                f"({upcoming_reset_str}). "
+                "This means the projection may not be achievable as calculated. "
+                "Consider increasing your entry frequency or hours."
+            )
+
+        st.session_state.conversation.append({"role": "assistant", "content": projection_message})
+
+
 # Display Only GPT's Latest Answer
 latest_gpt_answer = None
 for msg in reversed(st.session_state.conversation):
@@ -291,18 +358,10 @@ with st.expander("Show Full Conversation History", expanded=False):
         st.markdown(f"**{role_label}:** {msg['content']}")
 
 # ---------------------------
-# 2) Projections - Average Days Calculator
+# 2) Projections - Average Days Calculator (File Upload)
 # ---------------------------
-# Adding a heading with a floating label for "📁 Supported Formats: XLSX only"
-st.markdown(
-    """
-    <div style="display: flex; justify-content: space-between; align-items: center;">
-        <h2>2) Projections - Average Days Calculator</h2>
-        <span class="right-float">📁 Supported Formats: XLSX only</span>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
+st.markdown("---")
+st.markdown("## 2) Projections - Average Days Calculator")
 
 uploaded_file = st.file_uploader("Upload an Excel file (XLSX format):", type=["xlsx"])
 df_cleaned = None
@@ -361,4 +420,5 @@ if st.button("Clear Conversation"):
             )
         }
     ]
+    st.session_state.projection_triggered = False
     st.experimental_rerun()

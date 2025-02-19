@@ -6,11 +6,11 @@ import json
 import openai
 from datetime import datetime, timedelta
 
-# 1) We import the embedding-based helper functions from chunked_embeddings.py
+# 1) Import the updated functions from chunked_embeddings
 from chunked_embeddings import (
     split_text,
     create_embeddings_for_chunks,
-    find_most_similar_chunk,
+    find_top_n_chunks,
     ask_gpt
 )
 
@@ -114,55 +114,50 @@ big_knowledge_text = convert_json_to_text(knowledge_base)
 
 # ------------------------------------------
 # Our new chunk-based "find_best_answer" function
+# with top 2 chunks
 # ------------------------------------------
 def find_best_answer_chunked(user_query, knowledge_text):
     """
-    1) Split the knowledge_text into chunks
-    2) Create embeddings for each chunk
-    3) Find the chunk that best matches user_query
-    4) Ask GPT to answer using that chunk
+    1) Split the knowledge_text into chunks (~300 words)
+    2) Create embeddings
+    3) Find the top 2 chunks
+    4) Combine them
+    5) Ask GPT
     """
-    # If there's no text at all, fallback
     if not knowledge_text.strip():
         return "I don't have information on that."
 
-    # Step A: Split text into ~200-word chunks (50 overlap)
-    chunks = split_text(knowledge_text, chunk_size=200, overlap=50)
+    # Split text into chunks
+    chunks = split_text(knowledge_text, chunk_size=300, overlap=50)
 
-    # Step B: Embed each chunk
+    # Create embeddings
     embeddings = create_embeddings_for_chunks(chunks)
 
-    # Step C: Find the best chunk
-    best_chunk = find_most_similar_chunk(user_query, embeddings)
+    # Find top 2 chunks
+    top_chunks = find_top_n_chunks(user_query, embeddings, n=2)
+    # Merge them into a single string
+    combined_chunks = "\n\n".join(f"[Score: {score:.3f}] {chunk}" for score, chunk in top_chunks)
 
-    # Step D: Ask GPT using that chunk
-    answer = ask_gpt(user_query, best_chunk)
+    # Pass combined chunks to GPT
+    answer = ask_gpt(user_query, combined_chunks)
     return answer
 
 # ------------------------------------------
 # Projection Calculation Logic
 # ------------------------------------------
 def calculate_required_days(current_weighted_date_diff, current_hours_worked, user_promised_hours, user_delay):
-    """
-    Calculate how many days of consistent time entry it would take 
-    to reduce the average below 5 days.
-    """
     current_average = current_weighted_date_diff / current_hours_worked if current_hours_worked else 0
-    
-    # This formula tries to get below 5 days:
     required_days = max(
         0,
         (4.99 * current_hours_worked - current_weighted_date_diff)
         / (user_promised_hours * user_delay - 4.99 * user_promised_hours)
     )
     required_days = round(required_days)
-
     projected_hours_worked = current_hours_worked + (user_promised_hours * required_days)
     projected_weighted_date_diff = current_weighted_date_diff + (user_promised_hours * user_delay * required_days)
     projected_average = (
         projected_weighted_date_diff / projected_hours_worked if projected_hours_worked else 0
     )
-
     return {
         'Current Average': current_average,
         'Projected Average': projected_average,
@@ -170,11 +165,6 @@ def calculate_required_days(current_weighted_date_diff, current_hours_worked, us
     }
 
 def get_upcoming_reset_date(title, current_date):
-    """
-    Determines the upcoming reset date based on the title.
-    For associates/staff, resets on November 1; for counsel/partners, 
-    resets on October 1.
-    """
     title_lower = title.lower()
     if "associate" in title_lower or "staff" in title_lower:
         reset_month, reset_day = 11, 1
@@ -234,7 +224,6 @@ with col2:
         
         # If the user's query is projection-related, show the Excel uploader and projection form.
         if any(trigger in user_input.lower() for trigger in projection_triggers):
-            # Display file uploader only for projection queries
             uploaded_file = st.file_uploader("Upload an Excel file", type=["xlsx"])
             df_cleaned = None
             
@@ -242,7 +231,6 @@ with col2:
                 df = pd.read_excel(uploaded_file, engine='openpyxl')
                 st.write("### Preview of Uploaded Data:", df.head())
                 
-                # Clean the data: drop metadata rows, set headers, remove empty columns/rows.
                 df_cleaned = df.iloc[2:].reset_index(drop=True)
                 df_cleaned.columns = df_cleaned.iloc[0]
                 df_cleaned = df_cleaned[1:].reset_index(drop=True)
@@ -250,7 +238,6 @@ with col2:
                 df_cleaned = df_cleaned.loc[:, ~df_cleaned.columns.astype(str).str.contains('Unnamed', na=False)]
                 df_cleaned.dropna(how='all', inplace=True)
                 
-                # Remove last two rows based on "Weighted Date Diff" if present
                 if "Weighted Date Diff" in df_cleaned.columns:
                     try:
                         last_valid_index = df_cleaned[df_cleaned["Weighted Date Diff"].notna()].index[-1]
@@ -260,7 +247,6 @@ with col2:
                 
                 st.write("### Preview of Cleaned Data:", df_cleaned.head())
                 
-                # Provide a download button for the cleaned Excel file.
                 output = io.BytesIO()
                 with pd.ExcelWriter(output, engine='openpyxl') as writer:
                     df_cleaned.to_excel(writer, index=False, sheet_name="Cleaned Data")
@@ -274,7 +260,6 @@ with col2:
             else:
                 st.warning("Please upload an Excel file to calculate your projection.")
             
-            # Only show the projection input form if the file has been uploaded
             if uploaded_file:
                 st.markdown("**To calculate your projection, please provide the following details:**")
                 title = st.text_input("Enter your Title:")
@@ -291,7 +276,6 @@ with col2:
                 promised_hours = st.number_input("Hours entered per session:", min_value=0.0, value=7.5, step=0.5)
                 
                 if st.button("Calculate Projection"):
-                    # Attempt to extract values from the DataFrame or use placeholders
                     if (df_cleaned is not None 
                         and "Weighted Date Diff" in df_cleaned.columns 
                         and "Hours Worked" in df_cleaned.columns):
@@ -306,7 +290,6 @@ with col2:
                         current_weighted_date_diff = current_avg * 100
                         current_hours_worked = 100
 
-                    # Calculate projection
                     results = calculate_required_days(
                         current_weighted_date_diff,
                         current_hours_worked,
@@ -316,11 +299,9 @@ with col2:
                     target_date = current_date + timedelta(days=results['Required Days'])
                     upcoming_reset = get_upcoming_reset_date(title, current_date)
                     
-                    # Format the dates as MM/DD/YYYY
                     target_date_str = target_date.strftime('%m/%d/%Y')
                     upcoming_reset_str = upcoming_reset.strftime('%m/%d/%Y')
 
-                    # Build the projection message
                     disclaimer = knowledge_base.get("disclaimers", {}).get("primary_disclaimer", "")
                     projection_message = (
                         f"{disclaimer}\n\n"
@@ -340,18 +321,13 @@ with col2:
                             "Consider increasing your entry frequency or hours."
                         )
                     
-                    # Append final answer
                     st.session_state.conversation.append({"role": "assistant", "content": projection_message})
         else:
-            # Normal Q&A from the knowledge base (embedding-based)
-            # We convert the entire knowledge base JSON to a big text,
-            # then do chunk-based search
+            # Normal Q&A from the knowledge base (embedding-based, top 2 chunks)
             assistant_reply = find_best_answer_chunked(user_input, big_knowledge_text)
             st.session_state.conversation.append({"role": "assistant", "content": assistant_reply})
 
-        # ---------------------------
         # Display Only GPT's Latest Answer
-        # ---------------------------
         latest_gpt_answer = None
         for msg in reversed(st.session_state.conversation):
             if msg["role"] == "assistant":
@@ -361,21 +337,15 @@ with col2:
         if latest_gpt_answer:
             st.markdown(f"**GPT:** {latest_gpt_answer}")
 
-    # --------------------------------------
     # Conversation History (Collapsed)
-    # --------------------------------------
     with st.expander("Show Full Conversation History", expanded=False):
         for msg in st.session_state.conversation:
-            # Skip system messages so they don't show up to the user
             if msg["role"] == "system":
                 continue
-            
             role_label = "GPT" if msg["role"] == "assistant" else "You"
             st.markdown(f"**{role_label}:** {msg['content']}")
 
-    # --------------------------------------
     # Clear Conversation Button
-    # --------------------------------------
     if st.button("Clear Conversation"):
         st.session_state.conversation = [
             {

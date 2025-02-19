@@ -126,7 +126,7 @@ def call_gpt_with_knowledge_base(user_query, knowledge_snippet):
 # ------------------------------------------
 # UPDATED: Use GPT to rephrase the matched answer
 # ------------------------------------------
-def find_best_answer(query, qna_pairs, cutoff=0.5):
+def find_best_answer(query, qna_pairs, cutoff=0.2):
     questions = [q[0] for q in qna_pairs]
     best_match = difflib.get_close_matches(query.lower(), questions, n=1, cutoff=cutoff)
     if best_match:

@@ -14,6 +14,7 @@ st.set_page_config(page_title="Average Days to Enter Time - AI Assistant", layou
 
 # ------------------------------------------
 # Inject custom CSS for bigger buttons and inputs
+# and a vertical line between columns
 # ------------------------------------------
 st.markdown("""
 <style>
@@ -36,6 +37,12 @@ st.markdown("""
     font-size: 1rem;
     padding: 0.4rem;
     height: 2rem;
+}
+
+/* Add a vertical line on the left edge of the second column */
+div[data-testid="column"]:nth-of-type(2) {
+    border-left: 2px solid #ccc;
+    padding-left: 20px;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -133,7 +140,8 @@ def calculate_required_days(current_weighted_date_diff, current_hours_worked, us
 def get_upcoming_reset_date(title, current_date):
     """
     Determines the upcoming reset date based on the title.
-    For associates/staff, resets on November 1; for counsel/partners, resets on October 1.
+    For associates/staff, resets on November 1; for counsel/partners, 
+    resets on October 1.
     """
     title_lower = title.lower()
     if "associate" in title_lower or "staff" in title_lower:
@@ -166,14 +174,14 @@ st.markdown(
 col1, col2 = st.columns([1.2, 3], gap="medium")
 
 # ------------------------------------------
-# LEFT COLUMN (Logo, Title, Chat Box)
+# LEFT COLUMN (Chat Section)
 # ------------------------------------------
 with col1:
     st.title("Average Days to Enter Time - AI Assistant")
     user_input = st.text_input("Ask me anything about Average Days to Enter Time:")
 
 # ------------------------------------------
-# RIGHT COLUMN (Logic, File Uploader, Answers)
+# RIGHT COLUMN (Excel/Projection, Answers)
 # ------------------------------------------
 with col2:
     # Define trigger phrases for projection calculations

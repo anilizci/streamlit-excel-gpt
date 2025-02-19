@@ -8,29 +8,29 @@ import openai
 from datetime import datetime, timedelta
 
 # ---------------------------
-# Inject custom CSS for smaller buttons and inputs
+# Inject custom CSS for bigger buttons and inputs
 # ---------------------------
 st.markdown("""
 <style>
-/* Make all Streamlit buttons smaller */
+/* Make all Streamlit buttons slightly bigger */
 .stButton > button {
-    padding: 0.25rem 0.5rem;
-    font-size: 0.75rem;
-    line-height: 1.2;
+    padding: 0.4rem 0.8rem;
+    font-size: 1rem;
+    line-height: 1.4;
 }
 
-/* Make text_input fields smaller */
+/* Make text_input fields bigger */
 .stTextInput>div>div>input {
-    font-size: 0.75rem;
-    padding: 0.25rem;
-    height: 1.5rem;
+    font-size: 1rem;
+    padding: 0.4rem;
+    height: 2rem;
 }
 
-/* Make number_input fields smaller */
+/* Make number_input fields bigger */
 .stNumberInput>div>div>input {
-    font-size: 0.75rem;
-    padding: 0.25rem;
-    height: 1.5rem;
+    font-size: 1rem;
+    padding: 0.4rem;
+    height: 2rem;
 }
 </style>
 """, unsafe_allow_html=True)

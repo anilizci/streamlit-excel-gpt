@@ -114,7 +114,7 @@ def call_gpt_with_knowledge_base(user_query, knowledge_snippet):
         "Please answer using only the snippet above."
     )
     response = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo",
+        model="gpt-4",
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},

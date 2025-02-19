@@ -8,6 +8,34 @@ import openai
 from datetime import datetime, timedelta
 
 # ---------------------------
+# Inject custom CSS for smaller buttons and inputs
+# ---------------------------
+st.markdown("""
+<style>
+/* Make all Streamlit buttons smaller */
+.stButton > button {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+    line-height: 1.2;
+}
+
+/* Make text_input fields smaller */
+.stTextInput>div>div>input {
+    font-size: 0.75rem;
+    padding: 0.25rem;
+    height: 1.5rem;
+}
+
+/* Make number_input fields smaller */
+.stNumberInput>div>div>input {
+    font-size: 0.75rem;
+    padding: 0.25rem;
+    height: 1.5rem;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# ---------------------------
 # Session State Initialization
 # ---------------------------
 if 'conversation' not in st.session_state:

@@ -250,8 +250,6 @@ with col2:
                 promised_hours = st.number_input("Hours entered per session:", min_value=0.0, value=7.5, step=0.5)
                 
                 if st.button("Calculate Projection"):
-                    st.write("**Debug:** 'Calculate Projection' button was clicked. Computing results...")
-
                     # Attempt to extract values from the DataFrame or use placeholders
                     if (df_cleaned is not None 
                         and "Weighted Date Diff" in df_cleaned.columns 

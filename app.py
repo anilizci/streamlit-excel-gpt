@@ -99,13 +99,41 @@ def extract_qna(data):
 
 qna_pairs = extract_qna(knowledge_base)
 
+# ------------------------------------------
+# NEW: Helper function to have GPT rephrase/expand the snippet
+# ------------------------------------------
+def call_gpt_with_knowledge_base(user_query, knowledge_snippet):
+    system_prompt = (
+        "You are an AI assistant that ONLY uses the provided knowledge base snippet. "
+        "If the snippet doesn't contain relevant info, respond with 'I don't have information on that.' "
+        "Be concise, clear, and well-structured."
+    )
+    user_prompt = (
+        f"User asked: '{user_query}'\n\n"
+        f"Knowledge snippet:\n{knowledge_snippet}\n\n"
+        "Please answer using only the snippet above."
+    )
+    response = openai.ChatCompletion.create(
+        model="gpt-3.5-turbo",
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+        temperature=0
+    )
+    return response.choices[0].message["content"]
+
+# ------------------------------------------
+# UPDATED: Use GPT to rephrase the matched answer
+# ------------------------------------------
 def find_best_answer(query, qna_pairs, cutoff=0.5):
     questions = [q[0] for q in qna_pairs]
     best_match = difflib.get_close_matches(query.lower(), questions, n=1, cutoff=cutoff)
     if best_match:
         for q, a in qna_pairs:
             if q == best_match[0]:
-                return a
+                # Instead of returning 'a' directly, call GPT for a refined answer
+                return call_gpt_with_knowledge_base(query, a)
     return "I don't have information on that."
 
 # ------------------------------------------

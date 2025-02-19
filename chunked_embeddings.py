@@ -3,9 +3,6 @@
 import openai
 import numpy as np
 
-# IMPORTANT: We do NOT set openai.api_key here.
-# We will set the API key in our app.py (or via secrets / environment variable).
-
 def split_text(text, chunk_size=200, overlap=50):
     """
     Splits 'text' into chunks of roughly 'chunk_size' words,

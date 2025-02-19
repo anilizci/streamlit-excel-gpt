@@ -13,9 +13,10 @@ from datetime import datetime, timedelta
 st.set_page_config(page_title="Average Days to Enter Time - AI Assistant", layout="wide")
 
 # ------------------------------------------
-# Inject custom CSS for bigger buttons and inputs
-# and a vertical line between columns
+# Inject custom CSS
 # ------------------------------------------
+# 1) Slightly bigger buttons/inputs
+# 2) A white vertical line between col1 and col2
 st.markdown("""
 <style>
 /* Make all Streamlit buttons slightly bigger */
@@ -39,9 +40,9 @@ st.markdown("""
     height: 2rem;
 }
 
-/* Add a vertical line on the left edge of the second column */
+/* Add a vertical line on the left edge of the second column (white line) */
 div[data-testid="column"]:nth-of-type(2) {
-    border-left: 2px solid #ccc;
+    border-left: 2px solid #fff;
     padding-left: 20px;
 }
 </style>

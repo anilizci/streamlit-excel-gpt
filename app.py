@@ -87,11 +87,9 @@ knowledge_base = load_knowledge_base()
 
 # ------------------------------------------
 # Convert the entire knowledge_base into one big text
-# (We gather all 'answer' or 'content' fields and combine them)
 # ------------------------------------------
 def convert_json_to_text(data):
     text_fragments = []
-
     def traverse(obj):
         if isinstance(obj, dict):
             for k, v in obj.items():
@@ -103,11 +101,9 @@ def convert_json_to_text(data):
         elif isinstance(obj, list):
             for item in obj:
                 traverse(item)
-
     traverse(data)
     return "\n".join(text_fragments)
 
-# Create one big text from the knowledge_base
 big_knowledge_text = convert_json_to_text(knowledge_base)
 
 # ------------------------------------------
@@ -151,7 +147,6 @@ def get_upcoming_reset_date(title, current_date):
         reset_month, reset_day = 11, 1
     else:
         reset_month, reset_day = 10, 1
-
     year = current_date.year
     candidate = datetime(year, reset_month, reset_day).date()
     if current_date <= candidate:
@@ -159,12 +154,8 @@ def get_upcoming_reset_date(title, current_date):
     else:
         return datetime(year + 1, reset_month, reset_day).date()
 
-# NEW: Helper to skip weekends
+# Helper to skip weekends if needed
 def add_business_days(start_date, days_needed):
-    """
-    Moves forward 'days_needed' business days (Mon-Fri), skipping weekends.
-    Returns the resulting date.
-    """
     current = start_date
     business_days_passed = 0
     while business_days_passed < days_needed:
@@ -256,7 +247,13 @@ with col2:
             if uploaded_file:
                 st.markdown("**To calculate your projection, please provide the following details:**")
                 title = st.text_input("Enter your Title:")
-                current_date = st.date_input("Current Date:", value=datetime.today())
+                
+                # UPDATED: Provide a hint in parentheses
+                current_date = st.date_input(
+                    "Current Date (Enter the last work date on the Excel):",
+                    value=datetime.today()
+                )
+
                 current_avg = st.number_input("Current Average Days to Enter Time:", min_value=0.0, value=16.0, step=0.1)
                 
                 entry_delay = st.number_input(
@@ -268,7 +265,6 @@ with col2:
                 
                 promised_hours = st.number_input("Hours entered per session:", min_value=0.0, value=7.5, step=0.5)
 
-                # NEW: Ask if user works only weekdays or also weekends
                 weekend_option = st.selectbox(
                     "Will you work only on weekdays or also on weekends?",
                     ["Weekdays only", "Weekdays + weekends"]
@@ -289,7 +285,6 @@ with col2:
                         current_weighted_date_diff = current_avg * 100
                         current_hours_worked = 100
 
-                    # Calculate how many "days" we need in an abstract sense
                     results = calculate_required_days(
                         current_weighted_date_diff,
                         current_hours_worked,
@@ -298,13 +293,9 @@ with col2:
                     )
 
                     required_days = results['Required Days']
-
-                    # Convert those "days" to a target date
                     if weekend_option == "Weekdays only":
-                        # Skip weekends
                         target_date = add_business_days(current_date, required_days)
                     else:
-                        # All calendar days
                         target_date = current_date + timedelta(days=required_days)
 
                     upcoming_reset = get_upcoming_reset_date(title, current_date)
@@ -333,11 +324,9 @@ with col2:
                     st.session_state.conversation.append({"role": "assistant", "content": projection_message})
 
         else:
-            # Normal Q&A from the knowledge base (embedding-based, top 2 chunks)
             assistant_reply = find_best_answer_chunked(user_input, big_knowledge_text)
             st.session_state.conversation.append({"role": "assistant", "content": assistant_reply})
 
-        # Display Only GPT's Latest Answer
         latest_gpt_answer = None
         for msg in reversed(st.session_state.conversation):
             if msg["role"] == "assistant":
@@ -347,7 +336,6 @@ with col2:
         if latest_gpt_answer:
             st.markdown(f"**GPT:** {latest_gpt_answer}")
 
-    # Conversation History (Collapsed)
     with st.expander("Show Full Conversation History", expanded=False):
         for msg in st.session_state.conversation:
             if msg["role"] == "system":
@@ -355,7 +343,6 @@ with col2:
             role_label = "GPT" if msg["role"] == "assistant" else "You"
             st.markdown(f"**{role_label}:** {msg['content']}")
 
-    # Clear Conversation Button
     if st.button("Clear Conversation"):
         st.session_state.conversation = [
             {

@@ -193,8 +193,9 @@ with col1:
 # RIGHT COLUMN (Excel/Projection, Answers)
 # ------------------------------------------
 with col2:
-    # Define trigger phrases for projection calculations
+    # Define trigger phrases for projection calculations (updated to include "calculate my average")
     projection_triggers = [
+        "calculate my average",
         "lower my average", 
         "reduce my average", 
         "decrease my average", 

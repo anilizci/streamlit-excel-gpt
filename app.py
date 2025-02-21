@@ -417,10 +417,12 @@ with col2:
                             "Consider increasing your entry frequency or hours."
                         )
                     
+                    # 1) Display GPT "Projection Results" before the table
                     st.session_state.conversation.append({"role": "assistant", "content": projection_message})
-                    
+                    st.markdown(f"**GPT:** {projection_message}")
+
                     # ------------------------------------------
-                    # Automatically display Top 5 Records with Highest Weighted Date Diff
+                    # 2) Automatically display Top 5 Records with Highest Weighted Date Diff
                     # ------------------------------------------
                     if st.session_state.df_cleaned is not None and "Weighted Date Diff" in st.session_state.df_cleaned.columns:
                         df_for_analysis = st.session_state.df_cleaned.copy()
@@ -437,13 +439,33 @@ with col2:
                             "TimeCard Entry Date", 
                             "Days To Enter Time"
                         ]
-                        
                         # Only show columns that actually exist in the DataFrame
                         existing_cols = [col for col in columns_to_show if col in top5_df.columns]
                         top5_df = top5_df[existing_cols]
                         
                         st.markdown("**Top 5 Records Contributing to High Average Days to Enter Time:**")
-                        st.dataframe(top5_df, use_container_width=True)
+                        
+                        # Style the table for center alignment, both horizontally and vertically
+                        styled_top5_df = top5_df.style.set_table_styles([
+                            {
+                                'selector': 'th',
+                                'props': [
+                                    ('text-align', 'center'),
+                                    ('vertical-align', 'middle')
+                                ]
+                            },
+                            {
+                                'selector': 'td',
+                                'props': [
+                                    ('text-align', 'center'),
+                                    ('vertical-align', 'middle'),
+                                    ('white-space', 'nowrap')
+                                ]
+                            }
+                        ])
+                        
+                        # Display the styled DataFrame
+                        st.dataframe(styled_top5_df, use_container_width=True)
         
         # Else, if the user query appears to be about Excel record analysis and a cleaned file exists
         elif (st.session_state.df_cleaned is not None and 
@@ -456,13 +478,15 @@ with col2:
             assistant_reply = find_best_answer_chunked(user_input, big_knowledge_text)
             st.session_state.conversation.append({"role": "assistant", "content": assistant_reply})
 
+        # This block displays the last GPT answer if not overridden
         latest_gpt_answer = None
         for msg in reversed(st.session_state.conversation):
             if msg["role"] == "assistant":
                 latest_gpt_answer = msg["content"]
                 break
 
-        if latest_gpt_answer:
+        # Show GPT answer if there's no special display logic above
+        if latest_gpt_answer and "Projection Results" not in latest_gpt_answer:
             st.markdown(f"**GPT:** {latest_gpt_answer}")
 
     with st.expander("Show Full Conversation History", expanded=False):

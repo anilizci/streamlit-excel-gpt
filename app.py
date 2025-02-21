@@ -193,7 +193,7 @@ with col1:
 # RIGHT COLUMN (Excel/Projection, Answers)
 # ------------------------------------------
 with col2:
-    # Define trigger phrases for projection calculations (updated to include "calculate my average")
+    # Define trigger phrases for projection calculations (updated to include additional variations)
     projection_triggers = [
         "calculate my average",
         "lower my average", 
@@ -202,13 +202,21 @@ with col2:
         "how long to get under 5", 
         "how to lower my average", 
         "my average days",
-        "average is high"
+        "average is high",
+        "calculate my average time",
+        "project my average time",
+        "average days to enter time",
+        "my average days to enter time"
     ]
 
+    # Check if the query is about calculating/projecting average time/days.
     if user_input:
         st.session_state.conversation.append({"role": "user", "content": user_input})
         
-        if any(trigger in user_input.lower() for trigger in projection_triggers):
+        if any(trigger in user_input.lower() for trigger in projection_triggers) or (
+            "average" in user_input.lower() and 
+            ("calculate" in user_input.lower() or "project" in user_input.lower() or "lower" in user_input.lower())
+        ):
             uploaded_file = st.file_uploader("Upload an Excel file", type=["xlsx"])
             df_cleaned = None
             

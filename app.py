@@ -426,11 +426,24 @@ with col2:
                         df_for_analysis = st.session_state.df_cleaned.copy()
                         df_for_analysis["Weighted Date Diff"] = pd.to_numeric(df_for_analysis["Weighted Date Diff"], errors="coerce")
                         top5_df = df_for_analysis.sort_values(by="Weighted Date Diff", ascending=False).head(5)
+                        
                         # Select the columns to display (ensure these match your Excel headers)
-                        columns_to_show = ["Original Index for Avg Days", "Timecard Index", "Weighted Date Diff", "Hours Worked", "Work Date", "TimeCard Entry Date", "Days To Enter Time"]
-                        top5_df = top5_df[columns_to_show]
+                        columns_to_show = [
+                            "Original Index for Avg Days", 
+                            "Timecard Index", 
+                            "Weighted Date Diff", 
+                            "Hours Worked", 
+                            "Work Date", 
+                            "TimeCard Entry Date", 
+                            "Days To Enter Time"
+                        ]
+                        
+                        # Only show columns that actually exist in the DataFrame
+                        existing_cols = [col for col in columns_to_show if col in top5_df.columns]
+                        top5_df = top5_df[existing_cols]
+                        
                         st.markdown("**Top 5 Records Contributing to High Average Days to Enter Time:**")
-                        st.table(top5_df)
+                        st.dataframe(top5_df, use_container_width=True)
         
         # Else, if the user query appears to be about Excel record analysis and a cleaned file exists
         elif (st.session_state.df_cleaned is not None and 

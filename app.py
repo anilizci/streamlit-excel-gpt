@@ -422,31 +422,43 @@ with col2:
                     st.markdown(f"**GPT:** {projection_message}")
 
                     # ------------------------------------------
-                    # 2) Automatically display Top 5 Records with Highest Weighted Date Diff
+                    # 2) Automatically display the records that cause high Average Days
                     # ------------------------------------------
                     if st.session_state.df_cleaned is not None and "Weighted Date Diff" in st.session_state.df_cleaned.columns:
                         df_for_analysis = st.session_state.df_cleaned.copy()
                         df_for_analysis["Weighted Date Diff"] = pd.to_numeric(df_for_analysis["Weighted Date Diff"], errors="coerce")
                         top5_df = df_for_analysis.sort_values(by="Weighted Date Diff", ascending=False).head(5)
                         
-                        # Select the columns to display (ensure these match your Excel headers)
+                        # Include Client and Matter columns if they exist
                         columns_to_show = [
-                            "Original Index for Avg Days", 
-                            "Timecard Index", 
-                            "Weighted Date Diff", 
-                            "Hours Worked", 
-                            "Work Date", 
-                            "TimeCard Entry Date", 
+                            "Original Index for Avg Days",
+                            "Client",
+                            "Matter",
+                            "Timecard Index",
+                            "Weighted Date Diff",
+                            "Hours Worked",
+                            "Work Date",
+                            "TimeCard Entry Date",
                             "Days To Enter Time"
                         ]
                         # Only show columns that actually exist in the DataFrame
                         existing_cols = [col for col in columns_to_show if col in top5_df.columns]
                         top5_df = top5_df[existing_cols]
                         
-                        st.markdown("**Top 5 Records Contributing to High Average Days to Enter Time:**")
+                        st.markdown(
+                            "**The following entries have contributed to an increased Average Days to Enter Time, "
+                            "negatively impacting overall efficiency**"
+                        )
                         
-                        # Style the table for center alignment, both horizontally and vertically
+                        # Style the table for center alignment and auto layout
                         styled_top5_df = top5_df.style.set_table_styles([
+                            {
+                                'selector': 'table',
+                                'props': [
+                                    ('table-layout', 'auto'),
+                                    ('width', 'auto')
+                                ]
+                            },
                             {
                                 'selector': 'th',
                                 'props': [
@@ -459,7 +471,7 @@ with col2:
                                 'props': [
                                     ('text-align', 'center'),
                                     ('vertical-align', 'middle'),
-                                    ('white-space', 'nowrap')
+                                    ('white-space', 'normal')
                                 ]
                             }
                         ])

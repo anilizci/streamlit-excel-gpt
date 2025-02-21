@@ -187,13 +187,14 @@ def answer_excel_question(user_query, df):
             sorted_df = df.sort_values(by="Weighted Date Diff", ascending=False).head(5)
             response_lines = ["Response: Top 5 Records Based on Weighted Date Diff:"]
             for i, row in enumerate(sorted_df.itertuples(), start=1):
+                row_dict = row._asdict()
                 response_lines.append(
-                    f"Record {i}: Original Index {row._asdict().get('Original Index for Avg Days', 'N/A')}, "
-                    f"Timecard Index {row._asdict().get('Timecard Index', 'N/A')} – Weighted Date Diff {row._asdict().get('Weighted Date Diff', 'N/A')}, "
-                    f"Hours Worked {row._asdict().get('Hours Worked', 'N/A')}, "
-                    f"Work Date {row._asdict().get('Work Date', 'N/A')}, "
-                    f"Entry Date {row._asdict().get('TimeCard Entry Date', 'N/A')}, "
-                    f"Delay {row._asdict().get('Days To Enter Time', 'N/A')} days."
+                    f"Record {i}: Original Index {row_dict.get('Original Index for Avg Days', 'N/A')}, "
+                    f"Timecard Index {row_dict.get('Timecard Index', 'N/A')} – Weighted Date Diff {row_dict.get('Weighted Date Diff', 'N/A')}, "
+                    f"Hours Worked {row_dict.get('Hours Worked', 'N/A')}, "
+                    f"Work Date {row_dict.get('Work Date', 'N/A')}, "
+                    f"Entry Date {row_dict.get('TimeCard Entry Date', 'N/A')}, "
+                    f"Delay {row_dict.get('Days To Enter Time', 'N/A')} days."
                 )
             response = "\n".join(response_lines)
             return response
@@ -417,6 +418,27 @@ with col2:
                         )
                     
                     st.session_state.conversation.append({"role": "assistant", "content": projection_message})
+                    
+                    # ------------------------------------------
+                    # Automatically display Top 5 Records with Highest Weighted Date Diff
+                    # ------------------------------------------
+                    if st.session_state.df_cleaned is not None and "Weighted Date Diff" in st.session_state.df_cleaned.columns:
+                        df_for_analysis = st.session_state.df_cleaned.copy()
+                        df_for_analysis["Weighted Date Diff"] = pd.to_numeric(df_for_analysis["Weighted Date Diff"], errors="coerce")
+                        top5_df = df_for_analysis.sort_values(by="Weighted Date Diff", ascending=False).head(5)
+                        response_lines = ["**Top 5 Records Contributing to High Average Days to Enter Time:**"]
+                        for i, row in enumerate(top5_df.itertuples(), start=1):
+                            row_dict = row._asdict()
+                            response_lines.append(
+                                f"Record {i}: Original Index {row_dict.get('Original Index for Avg Days', 'N/A')}, "
+                                f"Timecard Index {row_dict.get('Timecard Index', 'N/A')}, "
+                                f"Weighted Date Diff {row_dict.get('Weighted Date Diff', 'N/A')}, "
+                                f"Hours Worked {row_dict.get('Hours Worked', 'N/A')}, "
+                                f"Work Date {row_dict.get('Work Date', 'N/A')}, "
+                                f"Entry Date {row_dict.get('TimeCard Entry Date', 'N/A')}, "
+                                f"Delay {row_dict.get('Days To Enter Time', 'N/A')} days."
+                            )
+                        st.markdown("\n".join(response_lines))
         
         # Else, if the user query appears to be about Excel record analysis and a cleaned file exists
         elif (st.session_state.df_cleaned is not None and 

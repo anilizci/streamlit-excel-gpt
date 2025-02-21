@@ -426,19 +426,11 @@ with col2:
                         df_for_analysis = st.session_state.df_cleaned.copy()
                         df_for_analysis["Weighted Date Diff"] = pd.to_numeric(df_for_analysis["Weighted Date Diff"], errors="coerce")
                         top5_df = df_for_analysis.sort_values(by="Weighted Date Diff", ascending=False).head(5)
-                        response_lines = ["**Top 5 Records Contributing to High Average Days to Enter Time:**"]
-                        for i, row in enumerate(top5_df.itertuples(), start=1):
-                            row_dict = row._asdict()
-                            response_lines.append(
-                                f"Record {i}: Original Index {row_dict.get('Original Index for Avg Days', 'N/A')}, "
-                                f"Timecard Index {row_dict.get('Timecard Index', 'N/A')}, "
-                                f"Weighted Date Diff {row_dict.get('Weighted Date Diff', 'N/A')}, "
-                                f"Hours Worked {row_dict.get('Hours Worked', 'N/A')}, "
-                                f"Work Date {row_dict.get('Work Date', 'N/A')}, "
-                                f"Entry Date {row_dict.get('TimeCard Entry Date', 'N/A')}, "
-                                f"Delay {row_dict.get('Days To Enter Time', 'N/A')} days."
-                            )
-                        st.markdown("\n".join(response_lines))
+                        # Select the columns to display (ensure these match your Excel headers)
+                        columns_to_show = ["Original Index for Avg Days", "Timecard Index", "Weighted Date Diff", "Hours Worked", "Work Date", "TimeCard Entry Date", "Days To Enter Time"]
+                        top5_df = top5_df[columns_to_show]
+                        st.markdown("**Top 5 Records Contributing to High Average Days to Enter Time:**")
+                        st.table(top5_df)
         
         # Else, if the user query appears to be about Excel record analysis and a cleaned file exists
         elif (st.session_state.df_cleaned is not None and 

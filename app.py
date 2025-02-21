@@ -66,6 +66,8 @@ if 'conversation' not in st.session_state:
             )
         }
     ]
+if 'df_cleaned' not in st.session_state:
+    st.session_state.df_cleaned = None
 
 # ------------------------------------------
 # Securely Get API Key
@@ -166,6 +168,86 @@ def add_business_days(start_date, days_needed):
     return current
 
 # ------------------------------------------
+# Function to answer Excel analysis questions based on cleaned DataFrame
+# ------------------------------------------
+def answer_excel_question(user_query, df):
+    # Make a copy of the DataFrame to avoid modifying the original
+    df = df.copy()
+    # Ensure relevant numeric columns are converted
+    for col in ["Weighted Date Diff", "Days To Enter Time", "Hours Worked"]:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+    
+    query_lower = user_query.lower()
+    response = ""
+    
+    # Check for "compare top 5" or similar phrases
+    if "top 5" in query_lower or ("compare" in query_lower and "worst" in query_lower):
+        if "weighted" in query_lower or "avg" in query_lower or "average" in query_lower:
+            sorted_df = df.sort_values(by="Weighted Date Diff", ascending=False).head(5)
+            response_lines = ["Response: Top 5 Records Based on Weighted Date Diff:"]
+            for i, row in enumerate(sorted_df.itertuples(), start=1):
+                response_lines.append(
+                    f"Record {i}: Original Index {row._asdict().get('Original Index for Avg Days', 'N/A')}, "
+                    f"Timecard Index {row._asdict().get('Timecard Index', 'N/A')} – Weighted Date Diff {row._asdict().get('Weighted Date Diff', 'N/A')}, "
+                    f"Hours Worked {row._asdict().get('Hours Worked', 'N/A')}, "
+                    f"Work Date {row._asdict().get('Work Date', 'N/A')}, "
+                    f"Entry Date {row._asdict().get('TimeCard Entry Date', 'N/A')}, "
+                    f"Delay {row._asdict().get('Days To Enter Time', 'N/A')} days."
+                )
+            response = "\n".join(response_lines)
+            return response
+
+    # Check for record with the highest Weighted Date Diff (worst-performing)
+    if "highest" in query_lower and "weighted" in query_lower:
+        row = df.loc[df["Weighted Date Diff"].idxmax()]
+        response = (
+            "Response: Record with the Highest Weighted Date Diff (Worst-Performing):\n"
+            f"Original Index: {row.get('Original Index for Avg Days', 'N/A')}, "
+            f"Timecard Index: {row.get('Timecard Index', 'N/A')}, "
+            f"Weighted Date Diff: {row.get('Weighted Date Diff', 'N/A')}, "
+            f"Hours Worked: {row.get('Hours Worked', 'N/A')}, "
+            f"Work Date: {row.get('Work Date', 'N/A')}, "
+            f"Entry Date: {row.get('TimeCard Entry Date', 'N/A')}, "
+            f"Delay: {row.get('Days To Enter Time', 'N/A')} days."
+        )
+        return response
+
+    # Check for record with the lowest Weighted Date Diff (best-performing)
+    if ("lowest" in query_lower or "best" in query_lower) and "weighted" in query_lower:
+        row = df.loc[df["Weighted Date Diff"].idxmin()]
+        response = (
+            "Response: Record with the Lowest Weighted Date Diff (Best-Performing):\n"
+            f"Original Index: {row.get('Original Index for Avg Days', 'N/A')}, "
+            f"Timecard Index: {row.get('Timecard Index', 'N/A')}, "
+            f"Weighted Date Diff: {row.get('Weighted Date Diff', 'N/A')}, "
+            f"Hours Worked: {row.get('Hours Worked', 'N/A')}, "
+            f"Work Date: {row.get('Work Date', 'N/A')}, "
+            f"Entry Date: {row.get('TimeCard Entry Date', 'N/A')}, "
+            f"Delay: {row.get('Days To Enter Time', 'N/A')} days."
+        )
+        return response
+
+    # Check for record with the longest delay (based on Days To Enter Time)
+    if ("longest" in query_lower or "most delayed" in query_lower or "highest delay" in query_lower) and "entry" in query_lower:
+        row = df.loc[df["Days To Enter Time"].idxmax()]
+        response = (
+            "Response: Record with the Longest Delay in Entry:\n"
+            f"Original Index: {row.get('Original Index for Avg Days', 'N/A')}, "
+            f"Timecard Index: {row.get('Timecard Index', 'N/A')}, "
+            f"Days To Enter Time: {row.get('Days To Enter Time', 'N/A')}, "
+            f"Weighted Date Diff: {row.get('Weighted Date Diff', 'N/A')}, "
+            f"Hours Worked: {row.get('Hours Worked', 'N/A')}, "
+            f"Work Date: {row.get('Work Date', 'N/A')}, "
+            f"Entry Date: {row.get('TimeCard Entry Date', 'N/A')}."
+        )
+        return response
+
+    # Default fallback if no specific condition is met
+    response = "I'm sorry, I couldn't parse your Excel query. Please try rephrasing your question regarding the Excel records."
+    return response
+
+# ------------------------------------------
 # Logo at Top-Left
 # ------------------------------------------
 st.markdown(
@@ -208,11 +290,13 @@ with col2:
         "average days to enter time",
         "my average days to enter time"
     ]
+    # Define keywords to detect Excel analysis questions
+    excel_analysis_keywords = ["record", "weighted", "timecard", "delay", "entry", "index", "compare", "worst", "best", "performing"]
 
-    # Check if the query is about calculating/projecting average time/days.
     if user_input:
         st.session_state.conversation.append({"role": "user", "content": user_input})
         
+        # First, check for projection-related queries
         if any(trigger in user_input.lower() for trigger in projection_triggers) or (
             "average" in user_input.lower() and 
             ("calculate" in user_input.lower() or "project" in user_input.lower() or "lower" in user_input.lower())
@@ -239,6 +323,8 @@ with col2:
                         pass
                 
                 st.write("### Preview of Cleaned Data:", df_cleaned.head())
+                # Store the cleaned DataFrame in session_state for later Excel analysis queries
+                st.session_state.df_cleaned = df_cleaned
                 
                 output = io.BytesIO()
                 with pd.ExcelWriter(output, engine='openpyxl') as writer:
@@ -331,7 +417,14 @@ with col2:
                         )
                     
                     st.session_state.conversation.append({"role": "assistant", "content": projection_message})
-
+        
+        # Else, if the user query appears to be about Excel record analysis and a cleaned file exists
+        elif (st.session_state.df_cleaned is not None and 
+              any(keyword in user_input.lower() for keyword in excel_analysis_keywords)):
+            excel_response = answer_excel_question(user_input, st.session_state.df_cleaned)
+            st.session_state.conversation.append({"role": "assistant", "content": excel_response})
+        
+        # Otherwise, use the general GPT answer based on the knowledge base
         else:
             assistant_reply = find_best_answer_chunked(user_input, big_knowledge_text)
             st.session_state.conversation.append({"role": "assistant", "content": assistant_reply})

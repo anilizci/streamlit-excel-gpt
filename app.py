@@ -149,10 +149,11 @@ def get_upcoming_reset_date(title, current_date):
     reset is November 1. Otherwise, October 1.
     """
     title_lower = title.lower()
-    if "associate" in title_lower or "staff Attorney" in title_lower:
+    if "associate" in title_lower or "staff attorney" in title_lower:
         reset_month, reset_day = 11, 1
     else:
         reset_month, reset_day = 10, 1
+
     year = current_date.year
     candidate = datetime(year, reset_month, reset_day).date()
     if current_date <= candidate:
@@ -290,7 +291,7 @@ with col2:
             if uploaded_file:
                 st.markdown("**To calculate your projection, please provide the following details:**")
                 
-                # Title selection box
+                # Title selection box (with Staff Attorney)
                 title = st.selectbox(
                     "Select your Title:",
                     ["Associate", "Staff Attorney", "Partner", "Counsel", "Other"]
@@ -481,6 +482,4 @@ with col2:
                 )
             }
         ]
-        # Depending on your environment, st.experimental_rerun() might cause errors.
-        # If it does, you can comment out or remove the line below.
-        st.experimental_rerun()
+        # st.experimental_rerun()  # Uncomment if needed, but may cause issues in some environments

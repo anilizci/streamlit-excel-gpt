@@ -145,11 +145,11 @@ def calculate_required_days(current_weighted_date_diff, current_hours_worked, us
 
 def get_upcoming_reset_date(title, current_date):
     """
-    If title is 'Associate' or 'Staff' (case-insensitive),
+    If title is 'Associate' or 'Staff Attorney' (case-insensitive),
     reset is November 1. Otherwise, October 1.
     """
     title_lower = title.lower()
-    if "associate" in title_lower or "staff" in title_lower:
+    if "associate" in title_lower or "staff Attorney" in title_lower:
         reset_month, reset_day = 11, 1
     else:
         reset_month, reset_day = 10, 1
@@ -293,7 +293,7 @@ with col2:
                 # Title selection box
                 title = st.selectbox(
                     "Select your Title:",
-                    ["Associate", "Staff", "Partner", "Counsel", "Other"]
+                    ["Associate", "Staff Attorney", "Partner", "Counsel", "Other"]
                 )
 
                 current_date = st.date_input(

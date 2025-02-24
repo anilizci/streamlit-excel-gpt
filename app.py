@@ -144,6 +144,10 @@ def calculate_required_days(current_weighted_date_diff, current_hours_worked, us
     }
 
 def get_upcoming_reset_date(title, current_date):
+    """
+    If title is 'Associate' or 'Staff' (case-insensitive),
+    reset is November 1. Otherwise, October 1.
+    """
     title_lower = title.lower()
     if "associate" in title_lower or "staff" in title_lower:
         reset_month, reset_day = 11, 1
@@ -179,10 +183,10 @@ def answer_excel_question(user_query, df):
             df[col] = pd.to_numeric(df[col], errors="coerce")
     
     query_lower = user_query.lower()
-    response = ""
-    
-    # Example logic can be expanded to handle questions about highest Weighted Date Diff, etc.
-    response = "I'm sorry, I couldn't parse your Excel query. Please try rephrasing your question regarding the Excel records."
+    response = (
+        "I'm sorry, I couldn't parse your Excel query. "
+        "Please try rephrasing your question regarding the Excel records."
+    )
     return response
 
 # ------------------------------------------
@@ -213,7 +217,7 @@ with col1:
 # RIGHT COLUMN (Excel/Projection, Answers)
 # ------------------------------------------
 with col2:
-    # Define trigger phrases for projection calculations (updated to include additional variations)
+    # Define trigger phrases for projection calculations
     projection_triggers = [
         "calculate my average",
         "lower my average", 
@@ -229,16 +233,20 @@ with col2:
         "my average days to enter time"
     ]
     # Define keywords to detect Excel analysis questions
-    excel_analysis_keywords = ["record", "weighted", "timecard", "delay", "entry", "index", "compare", "worst", "best", "performing"]
+    excel_analysis_keywords = [
+        "record", "weighted", "timecard", "delay", "entry",
+        "index", "compare", "worst", "best", "performing"
+    ]
 
     if user_input:
         st.session_state.conversation.append({"role": "user", "content": user_input})
         
-        # First, check for projection-related queries
+        # Check for projection-related queries
         if any(trigger in user_input.lower() for trigger in projection_triggers) or (
             "average" in user_input.lower() and 
             ("calculate" in user_input.lower() or "project" in user_input.lower() or "lower" in user_input.lower())
         ):
+            # Excel upload
             uploaded_file = st.file_uploader("Upload an Excel file", type=["xlsx"])
             df_cleaned = None
             
@@ -246,6 +254,7 @@ with col2:
                 df = pd.read_excel(uploaded_file, engine='openpyxl')
                 st.write("### Preview of Uploaded Data:", df.head())
                 
+                # Basic cleaning approach
                 df_cleaned = df.iloc[2:].reset_index(drop=True)
                 df_cleaned.columns = df_cleaned.iloc[0]
                 df_cleaned = df_cleaned[1:].reset_index(drop=True)
@@ -253,6 +262,7 @@ with col2:
                 df_cleaned = df_cleaned.loc[:, ~df_cleaned.columns.astype(str).str.contains('Unnamed', na=False)]
                 df_cleaned.dropna(how='all', inplace=True)
                 
+                # Attempt to remove trailing rows
                 if "Weighted Date Diff" in df_cleaned.columns:
                     try:
                         last_valid_index = df_cleaned[df_cleaned["Weighted Date Diff"].notna()].index[-1]
@@ -261,9 +271,9 @@ with col2:
                         pass
                 
                 st.write("### Preview of Cleaned Data:", df_cleaned.head())
-                # Store the cleaned DataFrame in session_state for later Excel analysis queries
                 st.session_state.df_cleaned = df_cleaned
                 
+                # Download the cleaned file
                 output = io.BytesIO()
                 with pd.ExcelWriter(output, engine='openpyxl') as writer:
                     df_cleaned.to_excel(writer, index=False, sheet_name="Cleaned Data")
@@ -279,23 +289,39 @@ with col2:
             
             if uploaded_file:
                 st.markdown("**To calculate your projection, please provide the following details:**")
-                title = st.text_input("Enter your Title:")
                 
+                # Title selection box
+                title = st.selectbox(
+                    "Select your Title:",
+                    ["Associate", "Staff", "Partner", "Counsel", "Other"]
+                )
+
                 current_date = st.date_input(
                     "Current Date (Enter the last work date on the Excel):",
                     value=datetime.today()
                 )
 
-                current_avg = st.number_input("Current Average Days to Enter Time:", min_value=0.0, value=16.0, step=0.1)
+                current_avg = st.number_input(
+                    "Current Average Days to Enter Time:", 
+                    min_value=0.0, 
+                    value=16.0, 
+                    step=0.1
+                )
                 
                 entry_delay = st.number_input(
-                    "When are you going to enter the time? Enter 0 for the same day, for the next day please enter 1. (entry delay)", 
+                    "When are you going to enter the time? Enter 0 for the same day, "
+                    "for the next day please enter 1. (entry delay)", 
                     min_value=0.0, 
                     value=1.0, 
                     step=0.1
                 )
                 
-                promised_hours = st.number_input("Hours entered per session:", min_value=0.0, value=7.5, step=0.5)
+                promised_hours = st.number_input(
+                    "Hours entered per session:", 
+                    min_value=0.0, 
+                    value=7.5, 
+                    step=0.5
+                )
 
                 weekend_option = st.selectbox(
                     "Will you work only on weekdays or also on weekends?",
@@ -303,9 +329,11 @@ with col2:
                 )
 
                 if st.button("Calculate Projection"):
-                    if (df_cleaned is not None 
+                    if (
+                        df_cleaned is not None 
                         and "Weighted Date Diff" in df_cleaned.columns 
-                        and "Hours Worked" in df_cleaned.columns):
+                        and "Hours Worked" in df_cleaned.columns
+                    ):
                         try:
                             current_weighted_date_diff = pd.to_numeric(df_cleaned["Weighted Date Diff"], errors="coerce").sum()
                             current_hours_worked = pd.to_numeric(df_cleaned["Hours Worked"], errors="coerce").sum()
@@ -317,6 +345,7 @@ with col2:
                         current_weighted_date_diff = current_avg * 100
                         current_hours_worked = 100
 
+                    # Calculate required days
                     results = calculate_required_days(
                         current_weighted_date_diff,
                         current_hours_worked,
@@ -330,6 +359,7 @@ with col2:
                     else:
                         target_date = current_date + timedelta(days=required_days)
 
+                    # Determine upcoming reset date based on the selected title
                     upcoming_reset = get_upcoming_reset_date(title, current_date)
                     target_date_str = target_date.strftime('%m/%d/%Y')
                     upcoming_reset_str = upcoming_reset.strftime('%m/%d/%Y')
@@ -356,12 +386,16 @@ with col2:
                     st.session_state.conversation.append({"role": "assistant", "content": projection_message})
                     st.markdown(f"**GPT:** {projection_message}")
 
-                    if st.session_state.df_cleaned is not None and "Weighted Date Diff" in st.session_state.df_cleaned.columns:
+                    # Display top 5 records with highest Weighted Date Diff
+                    if (
+                        st.session_state.df_cleaned is not None 
+                        and "Weighted Date Diff" in st.session_state.df_cleaned.columns
+                    ):
                         df_for_analysis = st.session_state.df_cleaned.copy()
                         df_for_analysis["Weighted Date Diff"] = pd.to_numeric(df_for_analysis["Weighted Date Diff"], errors="coerce")
                         top5_df = df_for_analysis.sort_values(by="Weighted Date Diff", ascending=False).head(5)
                         
-                        # Columns updated to "Client Name" and "Matter Number"
+                        # If your Excel has "Client Name" / "Matter Number" columns, they will appear
                         columns_to_show = [
                             "Original Index for Avg Days",
                             "Client Name",
@@ -373,7 +407,6 @@ with col2:
                             "TimeCard Entry Date",
                             "Days To Enter Time"
                         ]
-                        # Only show columns that actually exist in the DataFrame
                         existing_cols = [col for col in columns_to_show if col in top5_df.columns]
                         top5_df = top5_df[existing_cols]
                         
@@ -406,19 +439,22 @@ with col2:
                                 ]
                             }
                         ])
-                        
                         st.dataframe(styled_top5_df, use_container_width=True)
         
-        elif (st.session_state.df_cleaned is not None and 
-              any(keyword in user_input.lower() for keyword in excel_analysis_keywords)):
+        # Else, if user query is about Excel record analysis
+        elif (
+            st.session_state.df_cleaned is not None 
+            and any(keyword in user_input.lower() for keyword in excel_analysis_keywords)
+        ):
             excel_response = answer_excel_question(user_input, st.session_state.df_cleaned)
             st.session_state.conversation.append({"role": "assistant", "content": excel_response})
         
+        # Otherwise, use the general GPT answer
         else:
             assistant_reply = find_best_answer_chunked(user_input, big_knowledge_text)
             st.session_state.conversation.append({"role": "assistant", "content": assistant_reply})
 
-        # Display the last GPT answer if not overridden
+        # Show the last GPT answer if not overridden
         latest_gpt_answer = None
         for msg in reversed(st.session_state.conversation):
             if msg["role"] == "assistant":
@@ -445,4 +481,6 @@ with col2:
                 )
             }
         ]
+        # Depending on your environment, st.experimental_rerun() might cause errors.
+        # If it does, you can comment out or remove the line below.
         st.experimental_rerun()
